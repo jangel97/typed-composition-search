@@ -1,11 +1,11 @@
 import argparse
 import importlib
 import json
-import math
 import time
-from collections import defaultdict
 
 from benchmarks.llm import MODELS, get_llm_config, llm_completion
+from benchmarks.metrics import avg, format_metric, format_pruning, format_tools
+from benchmarks.report import BenchmarkReport
 
 
 SYSTEM_PROMPT = """You are a type predictor for a tool composition system.
@@ -47,30 +47,6 @@ def predict_types(config: dict, query: str, system: str) -> tuple[dict, float, i
     return json.loads(text[start_idx:end_idx]), latency_ms, prompt_tokens, completion_tokens
 
 
-def tool_set_metrics(resolved: set[str], expected: set[str]) -> tuple[float, float, float]:
-    if not resolved and not expected:
-        return 1.0, 1.0, 1.0
-    if not resolved or not expected:
-        return 0.0, 0.0, 0.0
-    tp = len(resolved & expected)
-    precision = tp / len(resolved) if resolved else 0.0
-    recall = tp / len(expected) if expected else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-    return precision, recall, f1
-
-
-def percentile(values: list[float], p: float) -> float:
-    if not values:
-        return 0.0
-    sorted_vals = sorted(values)
-    k = (len(sorted_vals) - 1) * (p / 100.0)
-    f = int(k)
-    c = f + 1
-    if c >= len(sorted_vals):
-        return sorted_vals[f]
-    return sorted_vals[f] + (k - f) * (sorted_vals[c] - sorted_vals[f])
-
-
 def run_benchmark(model_name: str, domain: str):
     reg_mod = importlib.import_module(f"benchmarks.{domain}.registry")
     queries_mod = importlib.import_module(f"benchmarks.{domain}.queries")
@@ -95,33 +71,23 @@ def run_benchmark(model_name: str, domain: str):
     print(header)
     print("─" * len(header))
 
+    report = BenchmarkReport(total_tools, category_factory=lambda: {
+        "total": 0, "path_found": 0, "type_exact": 0, "f1_vals": [],
+    })
+
     source_correct = 0
     target_correct = 0
     type_exact = 0
     path_found_count = 0
-    all_precision = []
-    all_recall = []
-    all_f1 = []
-    all_tool_counts = []
-    all_latency = []
-    all_prompt_tokens = []
-    all_completion_tokens = []
-
-    category_stats = defaultdict(lambda: {
-        "total": 0, "path_found": 0, "type_exact": 0, "f1_vals": [],
-    })
 
     for q in queries:
         prediction, latency_ms, prompt_tok, completion_tok = predict_types(config, q["query"], system)
-        all_latency.append(latency_ms)
-        all_prompt_tokens.append(prompt_tok)
-        all_completion_tokens.append(completion_tok)
+        report.record_latency(latency_ms, prompt_tok, completion_tok)
         pred_source = prediction.get("source_type", "?")
         pred_target = prediction.get("target_type", "?")
 
         cat = q.get("category", "clean")
-        stats = category_stats[cat]
-        stats["total"] += 1
+        stats = report.category_stats[cat]
 
         expected_st = f"{q['source_type']}→{q['target_type']}"
         predicted_st = f"{pred_source}→{pred_target}"
@@ -143,44 +109,21 @@ def run_benchmark(model_name: str, domain: str):
             stats["path_found"] += 1
 
         expected_tools = set(q.get("expected_tools", []))
-        if path and expected_tools:
-            resolved_tools = {t.name for t in path.tools}
-            precision, recall, f1 = tool_set_metrics(resolved_tools, expected_tools)
-            n_tools = len(path.tools)
-            all_precision.append(precision)
-            all_recall.append(recall)
-            all_f1.append(f1)
-            stats["f1_vals"].append(f1)
-        else:
-            precision, recall, f1 = -1, -1, -1
-            n_tools = len(path.tools) if path else 0
-
-        all_tool_counts.append(n_tools)
+        resolved_tools = {t.name for t in path.tools} if path else set()
+        n_tools = len(path.tools) if path else 0
+        precision, recall, f1 = report.record_tool_result(resolved_tools, expected_tools, n_tools, cat)
 
         path_mark = "OK" if path_found else "MISS"
-        q_pruning = 1.0 - n_tools / total_tools if n_tools > 0 else -1
-        tools_str = f"{n_tools:>5}" if n_tools > 0 else "    —"
-        prune_str = f"{q_pruning:>5.0%}" if q_pruning >= 0 else "     —"
-        prec_str = f"{precision:>5.2f}" if precision >= 0 else "    —"
-        rec_str = f"{recall:>5.2f}" if recall >= 0 else "    —"
-        f1_str = f"{f1:>5.2f}" if f1 >= 0 else "    —"
-
         prompt = q["query"][:82] + "..." if len(q["query"]) > 85 else q["query"]
         print(
             f"{q['id']:<30} {cat:<12} {prompt:<85} "
             f"{expected_st:<25} {predicted_st:<25} "
-            f"{path_mark:>4} {tools_str} {prune_str} {prec_str} {rec_str} {f1_str} {latency_ms:>6.0f}"
+            f"{path_mark:>4} {format_tools(n_tools)} {format_pruning(n_tools, total_tools)} "
+            f"{format_metric(precision)} {format_metric(recall)} {format_metric(f1)} {latency_ms:>6.0f}"
         )
 
     n = len(queries)
     print("─" * len(header))
-
-    avg = lambda xs: sum(xs) / len(xs) if xs else 0.0
-    def std(xs):
-        if len(xs) < 2:
-            return 0.0
-        m = avg(xs)
-        return math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
 
     print(f"\nType Prediction ({n} queries):")
     print(f"  Source accuracy:     {source_correct}/{n} ({source_correct/n:.0%})")
@@ -190,56 +133,23 @@ def run_benchmark(model_name: str, domain: str):
     print(f"\nPath Resolution:")
     print(f"  Path found:         {path_found_count}/{n} ({path_found_count/n:.0%})")
 
-    if all_precision:
-        print(f"\nTool Accuracy (queries with expected tools):")
-        print(f"  Avg Precision:      {avg(all_precision):.2f} ± {std(all_precision):.2f}")
-        print(f"  Avg Recall:         {avg(all_recall):.2f} ± {std(all_recall):.2f}")
-        print(f"  Avg F1:             {avg(all_f1):.2f} ± {std(all_f1):.2f}")
-
-    avg_tools = avg(all_tool_counts)
-    pruning = 1.0 - avg_tools / total_tools
-    all_pruning = [1.0 - t / total_tools for t in all_tool_counts if t > 0]
-    print(f"\nPruning:")
-    print(f"  Avg tools selected: {avg_tools:.1f} ± {std(all_tool_counts):.1f} / {total_tools}")
-    print(f"  Avg pruning:       {pruning:.0%} ± {std(all_pruning):.0%}" if all_pruning else "  Avg pruning:       —")
-
-    print(f"\nLatency:")
-    print(f"  Avg:                {avg(all_latency):.0f}ms")
-    print(f"  P50:                {percentile(all_latency, 50):.0f}ms")
-    print(f"  P95:                {percentile(all_latency, 95):.0f}ms")
-
-    print(f"\nTokens:")
-    print(f"  Avg prompt:         {avg(all_prompt_tokens):.0f}")
-    print(f"  Avg completion:     {avg(all_completion_tokens):.0f}")
+    report.print_tool_accuracy()
+    report.print_pruning()
+    report.print_latency()
+    report.print_tokens()
 
     print(f"\nBy Category:")
-    cat_f1 = {}
-    for cat in sorted(category_stats.keys()):
-        s = category_stats[cat]
+    for cat in sorted(report.category_stats.keys()):
+        s = report.category_stats[cat]
         n_cat = s["total"]
         f1_avg = avg(s["f1_vals"]) if s["f1_vals"] else -1
-        cat_f1[cat] = f1_avg
         f1_str = f"f1={f1_avg:.2f}" if f1_avg >= 0 else "f1=—"
         print(f"  {cat:<12} path={s['path_found']}/{n_cat}  type_exact={s['type_exact']}/{n_cat}  {f1_str}")
 
     return {
-        "strategy": "graph",
-        "precision": avg(all_precision),
-        "recall": avg(all_recall),
-        "f1": avg(all_f1),
-        "hallucinated": 0,
-        "avg_tools": avg_tools,
-        "total_tools": total_tools,
-        "pruning": pruning,
-        "latency_avg": avg(all_latency),
-        "latency_p50": percentile(all_latency, 50),
-        "latency_p95": percentile(all_latency, 95),
-        "avg_prompt_tokens": avg(all_prompt_tokens),
-        "avg_completion_tokens": avg(all_completion_tokens),
-        "category_f1": cat_f1,
+        **report.base_result_dict("graph"),
         "path_found": path_found_count,
         "path_found_pct": path_found_count / n,
-        "n": n,
     }
 
 

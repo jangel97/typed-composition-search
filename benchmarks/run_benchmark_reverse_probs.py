@@ -3,82 +3,32 @@ import importlib
 import math
 import time
 
-from benchmarks.llm import MODELS, get_llm_config, llm_completion
-from benchmarks.metrics import avg, build_type_list, match_type_name, format_metric, format_pruning, format_tools
+from benchmarks.llm import get_llm_config, llm_completion
+from benchmarks.metrics import avg, std, build_type_list, match_type_name, format_metric, format_pruning, format_tools
+from benchmarks.run_benchmark_probs import parse_completions, filter_candidates, DEFAULT_THRESHOLD, DEFAULT_MAX_CANDIDATES
 from benchmarks.report import BenchmarkReport
 
 
-Q1_PROMPT = """The user's query describes something they HAVE (the starting point) and something they WANT (the goal).
-
-The starting point is the entity the user can already identify — for example, they know a deployment name, a namespace, a pod name, a role name.
-This is NOT what they want to find or obtain.
-
-Example: "Get the logs for pods in the nginx deployment" → the user HAS a Deployment (they know "nginx"). They WANT logs. Answer: Deployment
-Example: "Show me the events for pods in the api-gateway deployment" → the user HAS a Deployment. Answer: Deployment
-Example: "What are the default variables for the database role?" → the user HAS a Role. Answer: Role
-
-Given the user query, what entity type does the user HAVE (the starting point)?
+Q1_TARGET_PROMPT = """Given the user query, which entity type does the user WANT TO OBTAIN or FIND?
 
 Available entity types:
 {type_list}
 
 Respond with ONLY the entity type name, nothing else."""
 
-Q2_PROMPT = """The user starts from: {source_type} — {source_desc}
+Q2_SOURCE_PROMPT = """The user wants to obtain: {target_type} — {target_desc}
 
-Given the user query, which entity type does the user WANT TO OBTAIN or FIND?
+Given the user query, which entity type does the user ALREADY HAVE or START from?
 
-Available entity types:
+Only these entity types can reach {target_type}:
 {type_list}
 
 Respond with ONLY the entity type name, nothing else."""
 
 
-DEFAULT_THRESHOLD = 0.15
-DEFAULT_MAX_CANDIDATES = 5
-FALLBACK_N = 3
-
-
-def parse_completions(response, type_names: list[str]) -> list[tuple[str, float]]:
-    """Extract type candidates from multiple completions, scored by aggregated sequence probability."""
-    prob_sums: dict[str, float] = {}
-
-    for choice in response.choices:
-        text = choice.message.content.strip()
-        matched = match_type_name(text, type_names)
-        if not matched:
-            continue
-
-        if choice.logprobs and choice.logprobs.content:
-            seq_prob = math.exp(sum(tok.logprob for tok in choice.logprobs.content))
-        else:
-            seq_prob = 1.0
-
-        prob_sums[matched] = prob_sums.get(matched, 0.0) + seq_prob
-
-    total = sum(prob_sums.values())
-    if total == 0:
-        return []
-
-    candidates = [(name, p / total) for name, p in prob_sums.items()]
-    candidates.sort(key=lambda x: x[1], reverse=True)
-    return candidates
-
-
-def filter_candidates(
-    candidates: list[tuple[str, float]],
-    threshold: float = DEFAULT_THRESHOLD,
-    max_candidates: int = DEFAULT_MAX_CANDIDATES,
-) -> list[tuple[str, float]]:
-    above = [(name, prob) for name, prob in candidates if prob >= threshold]
-    if not above:
-        return candidates[:FALLBACK_N]
-    return above[:max_candidates]
-
-
-def predict_source(config, query, entity_types, type_names, threshold, max_candidates):
+def predict_target_probs(config, query, entity_types, type_names, n):
     type_list = build_type_list(entity_types, type_names)
-    system = Q1_PROMPT.format(type_list=type_list)
+    system = Q1_TARGET_PROMPT.format(type_list=type_list)
 
     start = time.monotonic()
     response = llm_completion(
@@ -88,6 +38,9 @@ def predict_source(config, query, entity_types, type_names, threshold, max_candi
             {"role": "user", "content": query},
         ],
         max_tokens=20,
+        n=n,
+        logprobs=True,
+        temperature=0.7,
     )
     latency_ms = (time.monotonic() - start) * 1000
 
@@ -95,17 +48,15 @@ def predict_source(config, query, entity_types, type_names, threshold, max_candi
     prompt_tokens = usage.prompt_tokens if usage else 0
     completion_tokens = usage.completion_tokens if usage else 0
 
-    text = response.choices[0].message.content.strip()
-    matched = match_type_name(text, type_names)
-    candidates = [(matched, 1.0)] if matched else []
+    candidates = parse_completions(response, type_names)
     return candidates, latency_ms, prompt_tokens, completion_tokens
 
 
-def predict_target(config, query, source_type, source_desc, reachable_names, entity_types, threshold, max_candidates):
-    type_list = build_type_list(entity_types, reachable_names)
-    system = Q2_PROMPT.format(
-        source_type=source_type,
-        source_desc=source_desc,
+def predict_source_probs(config, query, target_type, target_desc, source_names, entity_types, n):
+    type_list = build_type_list(entity_types, source_names)
+    system = Q2_SOURCE_PROMPT.format(
+        target_type=target_type,
+        target_desc=target_desc,
         type_list=type_list,
     )
 
@@ -117,6 +68,9 @@ def predict_target(config, query, source_type, source_desc, reachable_names, ent
             {"role": "user", "content": query},
         ],
         max_tokens=20,
+        n=n,
+        logprobs=True,
+        temperature=0.7,
     )
     latency_ms = (time.monotonic() - start) * 1000
 
@@ -124,13 +78,17 @@ def predict_target(config, query, source_type, source_desc, reachable_names, ent
     prompt_tokens = usage.prompt_tokens if usage else 0
     completion_tokens = usage.completion_tokens if usage else 0
 
-    text = response.choices[0].message.content.strip()
-    matched = match_type_name(text, reachable_names)
-    candidates = [(matched, 1.0)] if matched else []
+    candidates = parse_completions(response, source_names)
     return candidates, latency_ms, prompt_tokens, completion_tokens
 
 
-def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT_THRESHOLD, max_candidates: int = DEFAULT_MAX_CANDIDATES):
+def run_benchmark_reverse_probs(
+    model_name: str,
+    domain: str,
+    n_completions: int = 5,
+    threshold: float = DEFAULT_THRESHOLD,
+    max_candidates: int = DEFAULT_MAX_CANDIDATES,
+):
     reg_mod = importlib.import_module(f"benchmarks.{domain}.registry")
     queries_mod = importlib.import_module(f"benchmarks.{domain}.queries")
     build_registry = reg_mod.build_registry
@@ -144,25 +102,26 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
 
     type_names = sorted(entity_types.keys())
 
-    print(f"\n=== GRAPH-PROBS (threshold={threshold}, max={max_candidates}): {model_name} ({model_id}) ===")
+    print(f"\n=== GRAPH-REVERSE-PROBS (n={n_completions}, t={threshold}): {model_name} ({model_id}) ===")
     print(f"Total entity types: {len(type_names)}")
     print(f"Total tools: {total_tools}")
-    print(f"Pipeline: Q1 (source) → filter(≥{threshold}) → Q2 (target|source) → score → BFS\n")
+    print(f"Pipeline: Q1 target (n={n_completions}) → reverse BFS → Q2 source (n={n_completions}) → score → forward BFS\n")
 
     header = (
         f"{'Query':<30} {'Cat':<10} {'Expected S→T':<25} {'Best S→T':<25} "
-        f"{'Score':>7} {'Path':>4} {'Tools':>5} {'Prune':>6} {'Prec':>5} {'Rec':>5} {'F1':>5} {'Calls':>5} {'ms':>7}"
+        f"{'Score':>7} {'#Tgt':>4} {'#Src':>4} {'Path':>4} {'Tools':>5} {'Prune':>6} "
+        f"{'Prec':>5} {'Rec':>5} {'F1':>5} {'Calls':>5} {'ms':>7}"
     )
     print(header)
     print("─" * len(header))
 
     report = BenchmarkReport(total_tools, category_factory=lambda: {
         "total": 0, "path_found": 0, "f1_vals": [],
-        "source_in_topn": 0, "target_in_topn": 0,
+        "target_in_topn": 0, "source_in_topn": 0,
     })
 
-    source_in_topn = 0
     target_in_topn = 0
+    source_in_topn = 0
     path_found_count = 0
     all_llm_calls = []
 
@@ -175,47 +134,53 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
         total_completion = 0
         llm_calls = 0
 
-        source_candidates, lat, ptok, ctok = predict_source(
-            config, q["query"], entity_types, type_names, threshold, max_candidates,
+        # Q1: predict target with n completions + logprobs
+        target_candidates, lat, ptok, ctok = predict_target_probs(
+            config, q["query"], entity_types, type_names, n_completions,
         )
         total_latency += lat
         total_prompt += ptok
         total_completion += ctok
         llm_calls += 1
 
-        src_in = any(name == q["source_type"] for name, _ in source_candidates)
-        if src_in:
-            source_in_topn += 1
-            stats["source_in_topn"] += 1
+        target_candidates = filter_candidates(target_candidates, threshold, max_candidates)
+        n_tgt = len(target_candidates)
 
+        tgt_in = any(name == q["target_type"] for name, _ in target_candidates)
+        if tgt_in:
+            target_in_topn += 1
+            stats["target_in_topn"] += 1
+
+        # Q2: for each target candidate, reverse BFS → predict source
         best_path = None
         best_score = float("-inf")
         best_source = "?"
         best_target = "?"
-        tgt_found = False
+        src_found = False
+        best_n_src = 0
 
-        for src_name, src_prob in source_candidates:
-            reachable = registry.reachable_types(src_name)
-            if not reachable:
-                continue
-            reachable_names = sorted(reachable & set(entity_types.keys()))
-            if not reachable_names:
+        for tgt_name, tgt_prob in target_candidates:
+            reverse_sources = registry.reverse_reachable_types(tgt_name)
+            source_names = sorted(reverse_sources & set(entity_types.keys()))
+            if not source_names:
                 continue
 
-            target_candidates, lat, ptok, ctok = predict_target(
-                config, q["query"], src_name, entity_types.get(src_name, ""),
-                reachable_names, entity_types, threshold, max_candidates,
+            source_candidates, lat, ptok, ctok = predict_source_probs(
+                config, q["query"], tgt_name, entity_types.get(tgt_name, ""),
+                source_names, entity_types, n_completions,
             )
             total_latency += lat
             total_prompt += ptok
             total_completion += ctok
             llm_calls += 1
 
-            if any(name == q["target_type"] for name, _ in target_candidates):
-                tgt_found = True
+            source_candidates = filter_candidates(source_candidates, threshold, max_candidates)
 
-            for tgt_name, tgt_prob in target_candidates:
-                score = math.log(src_prob) + math.log(tgt_prob)
+            if any(name == q["source_type"] for name, _ in source_candidates):
+                src_found = True
+
+            for src_name, src_prob in source_candidates:
+                score = math.log(tgt_prob) + math.log(src_prob)
                 if score > best_score:
                     path = registry.resolve(src_name, tgt_name)
                     if path is not None:
@@ -223,10 +188,11 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
                         best_path = path
                         best_source = src_name
                         best_target = tgt_name
+                        best_n_src = len(source_candidates)
 
-        if tgt_found:
-            target_in_topn += 1
-            stats["target_in_topn"] += 1
+        if src_found:
+            source_in_topn += 1
+            stats["source_in_topn"] += 1
 
         report.record_latency(total_latency, total_prompt, total_completion)
         all_llm_calls.append(llm_calls)
@@ -248,16 +214,18 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
 
         print(
             f"{q['id']:<30} {cat:<10} {expected_st:<25} {predicted_st:<25} "
-            f"{score_str} {path_mark:>4} {format_tools(n_tools)} {format_pruning(n_tools, total_tools)} "
-            f"{format_metric(precision)} {format_metric(recall)} {format_metric(f1)} {llm_calls:>5} {total_latency:>7.0f}"
+            f"{score_str} {n_tgt:>4} {best_n_src:>4} {path_mark:>4} "
+            f"{format_tools(n_tools)} {format_pruning(n_tools, total_tools)} "
+            f"{format_metric(precision)} {format_metric(recall)} {format_metric(f1)} "
+            f"{llm_calls:>5} {total_latency:>7.0f}"
         )
 
     n = len(queries)
     print("─" * len(header))
 
-    print(f"\nOracle Metrics (threshold={threshold}):")
-    print(f"  Source in candidates: {source_in_topn}/{n} ({source_in_topn/n:.0%})")
+    print(f"\nOracle Metrics (n={n_completions}, threshold={threshold}):")
     print(f"  Target in candidates: {target_in_topn}/{n} ({target_in_topn/n:.0%})")
+    print(f"  Source in candidates: {source_in_topn}/{n} ({source_in_topn/n:.0%})")
 
     print(f"\nPath Resolution:")
     print(f"  Path found:        {path_found_count}/{n} ({path_found_count/n:.0%})")
@@ -278,14 +246,14 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
         f1_str = f"f1={f1_avg:.2f}" if f1_avg >= 0 else "f1=—"
         print(
             f"  {cat:<12} path={s['path_found']}/{n_cat}  "
-            f"src={s['source_in_topn']}/{n_cat}  "
-            f"tgt={s['target_in_topn']}/{n_cat}  {f1_str}"
+            f"tgt={s['target_in_topn']}/{n_cat}  "
+            f"src={s['source_in_topn']}/{n_cat}  {f1_str}"
         )
 
     return {
-        **report.base_result_dict(f"graph-probs (t={threshold})"),
-        "source_in_topn": source_in_topn,
+        **report.base_result_dict(f"graph-rev-probs (n={n_completions})"),
         "target_in_topn": target_in_topn,
+        "source_in_topn": source_in_topn,
         "avg_llm_calls": avg(all_llm_calls),
         "path_found": path_found_count,
         "path_found_pct": path_found_count / n,
@@ -295,9 +263,11 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("models", nargs="*", default=["qwen"],
-                        help="Models to benchmark (default: qwen). Logprobs required.")
+                        help="Models to benchmark (default: qwen)")
+    parser.add_argument("--n-completions", type=int, default=5,
+                        help="Number of completions per LLM call (default: 5)")
     parser.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD,
-                        help=f"Confidence threshold for candidates (default: {DEFAULT_THRESHOLD})")
+                        help=f"Confidence threshold (default: {DEFAULT_THRESHOLD})")
     parser.add_argument("--max-candidates", type=int, default=DEFAULT_MAX_CANDIDATES,
                         help=f"Max candidates to keep (default: {DEFAULT_MAX_CANDIDATES})")
     parser.add_argument("--domain", default="k8s",
@@ -305,7 +275,7 @@ def main():
     args = parser.parse_args()
 
     for model_name in args.models:
-        run_benchmark_probs(model_name, args.domain, args.threshold, args.max_candidates)
+        run_benchmark_reverse_probs(model_name, args.domain, args.n_completions, args.threshold, args.max_candidates)
 
 
 if __name__ == "__main__":

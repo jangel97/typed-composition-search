@@ -7,6 +7,7 @@ from benchmarks.run_retrieval import run_retrieval
 from benchmarks.run_benchmark_narrowed import run_benchmark_narrowed
 from benchmarks.run_benchmark_probs import run_benchmark_probs
 from benchmarks.run_benchmark_reverse import run_benchmark_reverse
+from benchmarks.run_benchmark_reverse_probs import run_benchmark_reverse_probs
 
 
 def fmt(val, fmt_str=".2f", na="—"):
@@ -127,6 +128,8 @@ def main():
                         help="Confidence threshold for probabilistic graph strategy (default: 0.15)")
     parser.add_argument("--max-candidates", type=int, default=5,
                         help="Max candidates for probabilistic graph strategy (default: 5)")
+    parser.add_argument("--n-completions", type=int, default=5,
+                        help="Number of completions for probabilistic strategies (default: 5)")
     args = parser.parse_args()
 
     results = []
@@ -155,6 +158,11 @@ def main():
     print(f"  Running GRAPH-REVERSE benchmark...")
     print("=" * 80)
     results.append(run_benchmark_reverse(args.model, args.domain))
+
+    print("\n" + "=" * 80)
+    print(f"  Running GRAPH-REVERSE-PROBS benchmark...")
+    print("=" * 80)
+    results.append(run_benchmark_reverse_probs(args.model, args.domain, args.n_completions, args.threshold, args.max_candidates))
 
     print("\n" + "=" * 80)
     print(f"  Running BASELINE benchmark...")
