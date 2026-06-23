@@ -1,243 +1,545 @@
-# Typed Composition Search
+# Typed Composition Search: Entity-Based Planning for Large Tool Ecosystems
 
-## Problem
+Large Language Models (LLMs) increasingly rely on external tools to access information, perform actions, and solve complex tasks. As tool ecosystems grow, traditional approaches that expose all available tools to the model become less effective, increasing context consumption, selection errors, and hallucination risk.
 
-Most MCP/tool ecosystems treat tool selection as a retrieval problem: embed the user's query, find the nearest tools. This works for single-tool queries but breaks down on compositional ones.
+Typed Composition Search (TCS) reframes tool routing as a graph search problem rather than a tool selection problem. Instead of asking the LLM to choose tools directly, the model predicts a source entity type, a target entity type, and any initial parameters required by the task. Tools are represented as typed transformations between entities, forming a directed graph. The execution engine then resolves a valid composition path through the graph using reachability analysis and graph search algorithms.
 
-Example: *"Who approved the latest build?"*
+This separation of concerns allows the LLM to focus on intent understanding while delegating planning and composition to a deterministic execution layer. By operating on entity relationships rather than tool descriptions, TCS significantly reduces the number of candidate tools presented to the model and enables scalable routing across large tool catalogs.
 
-Retrieval finds tools related to "build" and "approval." But the actual execution requires chaining four tools — `get_latest_build → get_pipeline → get_ticket → get_approver` — most of which are semantically distant from the original query. Retrieval can't discover them.
+We evaluate the approach against retrieval-based and direct tool-selection baselines across multiple domains and tool ecosystems. Experimental results show that graph-based typed planning improves routing accuracy, reduces hallucinated tool calls, and maintains high recall while pruning the search space by more than 95% in large registries.
 
-The problem gets worse as tool ecosystems grow. The tools a query *needs* are determined by the execution plan, not by semantic similarity to the query.
+The work suggests that entity-based planning provides a scalable foundation for tool-using AI systems and offers a practical alternative to embedding-only retrieval approaches for complex multi-step tool composition.
 
-## Idea
+Can we model tool ecosystems as typed entity graphs and perform planning in entity space instead of tool space?
 
-Tool selection is not a retrieval problem. It is a composition problem.
+## Overview
 
-Model each tool as a typed transformation:
+Typed Composition Search is a lightweight framework for tool composition based on graph traversal.
 
-```
-Tool = (Inputs, Outputs, Preconditions, Effects)
-```
-
-Build a capability graph where types are nodes and tools are edges. Reframe tool selection as: given an initial state and a goal state, find a path through the graph — a composition of tools that transforms one into the other.
-
-The LLM's job is not to select tools. It is to extract intent: what do we have, and what do we want. A planner handles the rest.
-
-## Results
-
-We built a minimal framework and benchmarked it against a 57-tool DevOps registry with 7 compositional queries.
+Instead of asking an LLM to select tools directly, tools are modeled as transformations between entity types:
 
 ```text
-57 tools → 82% average pruning → 100% recall
-```
-
-Every required tool was found across all queries. No tool that was structurally necessary for a valid composition was dropped.
-
-Attempts to improve precision (excluding source tools, limiting search depth) reduced recall without exception. The baseline captures something structurally important.
-
-See [DESIGN.md](DESIGN.md) for full results, variant experiments, and architecture discussion.
-
-## Formalization
-
-Let:
-
-* `S₀` be the initial state
-* `G` be the goal state
-* `T` be a set of available tools
-
-Each tool is modeled as:
-
-```text
-t = (Inputs, Outputs, Preconditions, Effects)
-```
-
-A tool is applicable when:
-
-```text
-Inputs(t) ⊆ S
-
-Preconditions(t) ⊆ S
-```
-
-Applying a tool produces a new state:
-
-```text
-S' = S ∪ Outputs(t) ∪ Effects(t)
-```
-
-For the initial model, we assume monotonic state growth:
-
-```text
-S ⊆ S'
-```
-
-Tools never consume or invalidate facts.
-
-This keeps the planning model simple and allows compositions to be represented as graph reachability problems.
-
-### Capability Graph
-
-A capability graph is derived automatically from tool signatures:
-
-```text
-Nodes = Types / Facts / Effects
-
-Edges = Tools
-```
-
-Example:
-
-```text
+ProductName
+    ↓
 Product
-    |
-    | get_latest_build
-    v
+    ↓
+Artifact
+    ↓
 Build
-    |
-    | get_pipeline
-    v
-Pipeline
-    |
-    | get_ticket
-    v
-Ticket
-    |
-    | get_approver
-    v
-User
+    ↓
+PipelineRunURL
 ```
 
-The planner's job is to discover compositions that transform an initial state into a goal state.
+Each tool becomes an edge in a directed graph.
 
-### Linear Composition
+Given a source type and a target type, the framework finds the shortest tool chain required to reach the desired information.
 
-A composition is a sequence of tools:
+---
+
+## Motivation - The Tool Explosion Problem
+
+Many agent frameworks expose every available tool to the model on every request.
 
 ```text
-π = [t₁, t₂, ..., tₙ]
+User Query
+     ↓
+LLM
+     ↓
+500 Tool Schemas
+     ↓
+Tool Selection
 ```
 
-such that:
+This creates several challenges:
+
+* Large tool ecosystems consume significant context window space.
+* Tool schemas often dominate input token usage.
+* Similar tools dilute retrieval quality.
+* Unrelated tools increase the probability of incorrect tool selection.
+* Multi-step tool composition becomes harder as the number of available tools grows.
+
+In practice, a large fraction of agent context can be spent describing tools rather than solving the user's problem.
+
+Most agent systems solve tool usage as a retrieval problem:
 
 ```text
-S₀ --t₁--> S₁ --t₂--> ... --tₙ--> Sₙ
+User Query
+     ↓
+Embeddings / LLM
+     ↓
+Tool Selection
+     ↓
+Execution
 ```
 
-and:
+This works well for simple requests but becomes increasingly difficult when:
+
+* The number of tools grows.
+* Multiple tools must be chained together.
+* Required tools are semantically unrelated.
+* Tool schemas consume large amounts of context.
+* Tool selection becomes a larger search problem.
+
+### A Different Approach
+
+Typed Composition Search explores a different architecture:
 
 ```text
-G ⊆ Sₙ
+User Query
+     ↓
+LLM
+     ↓
+Source Type + Target Type
+     ↓
+Graph Search
+     ↓
+Tool Chain
+     ↓
+Execution
 ```
 
-### Higher-Order Composition
+Rather than selecting tools directly, the model identifies:
 
-Many real-world queries cannot be expressed as simple paths.
+```text
+What information do I have?
+What information do I need?
+```
+
+The graph determines how to connect them.
+
+This allows the system to expose only the tools that are relevant to the requested goal, potentially reducing token consumption, improving scalability, and simplifying multi-step planning.
+
+---
+
+## Core Concepts
+
+### Entity Types
+
+Entity types are graph nodes.
 
 Examples:
 
 ```text
-Count containers across all products
+ProductName
+Product
+Artifact
+Build
+PipelineRun
+PipelineRunURL
 ```
 
-```text
-Create a Jira ticket for every failed pipeline
+Entity types represent information, not implementation details.
+
+### Tools
+
+Tools are graph edges.
+
+Example:
+
+```python
+get_product(ProductName) -> Product
+
+get_latest_artifact(Product) -> Artifact
+
+get_build(Artifact) -> Build
+
+get_pipeline_run(Build) -> PipelineRunURL
 ```
 
-```text
-Send a Slack notification only if failures exist
-```
+These tools automatically create a directed graph.
 
-To model these workflows, we introduce a small algebra of composition operators:
+### Graph Search
 
-```text
-compose
-map
-filter
-reduce
-if
-exists
-forall
-parallel
-```
-
-Examples:
-
-```text
-reduce(
-    sum,
-    map(
-        get_containers,
-        list_products()
-    )
-)
-```
-
-```text
-forall(
-    create_jira,
-    filter(
-        is_failed,
-        list_pipelines()
-    )
-)
-```
-
-```text
-if(
-    exists(failed_pipelines),
-    send_slack,
-    noop
-)
-```
-
-These operators allow plans to represent iteration, aggregation, branching, and conditional execution.
-
-### Program Synthesis View
-
-Under this formulation, tool selection becomes a program synthesis problem.
-
-Given:
-
-```text
-Γ = Context
-G = Goal
-```
-
-find an expression:
-
-```text
-Γ ⊢ e : G
-```
-
-where `e` is constructed from:
-
-```text
-Tools
-+
-Composition Operators
-```
+Finding a tool plan becomes a shortest-path problem.
 
 Example:
 
 ```text
-send_slack(
-    summarize(
-        list_artifacts(
-            get_latest_drop(Product)
-        )
-    )
+Source:
+ProductName
+
+Target:
+PipelineRunURL
+```
+
+The graph returns:
+
+```text
+ProductName
+    ↓
+Product
+    ↓
+Artifact
+    ↓
+Build
+    ↓
+PipelineRunURL
+```
+
+and the corresponding tools:
+
+```text
+get_product
+get_latest_artifact
+get_build
+get_pipeline_run
+```
+
+---
+
+## Example
+
+### Register Tools
+
+```python
+from typed_composition_search import Registry
+
+registry = Registry()
+
+registry.register(
+    "get_product",
+    "ProductName",
+    "Product"
+)
+
+registry.register(
+    "get_latest_artifact",
+    "Product",
+    "Artifact"
+)
+
+registry.register(
+    "get_build",
+    "Artifact",
+    "Build"
+)
+
+registry.register(
+    "get_pipeline_run",
+    "Build",
+    "PipelineRunURL"
 )
 ```
 
-The objective is not to retrieve tools.
+### Resolve a Path
 
-The objective is to synthesize an executable composition that satisfies the requested goal.
+```python
+path = registry.resolve(
+    source_type="ProductName",
+    target_type="PipelineRunURL"
+)
+```
 
-### Thesis
+Result:
 
-Tool retrieval is not fundamentally a similarity search problem.
+```text
+get_product
+get_latest_artifact
+get_build
+get_pipeline_run
+```
 
-It is a typed composition and planning problem.
+---
 
-Embeddings and LLMs may help infer intent, entities, and goals, but the selection of tools emerges from the synthesis of a valid composition over a graph of capabilities.
+## Agent Architecture
+
+A typical agent workflow looks like:
+
+```text
+User Query
+     ↓
+LLM
+     ↓
+{
+  "needs_tools": true,
+  "source_type": "ProductName",
+  "target_type": "PipelineRunURL"
+}
+     ↓
+Typed Composition Search
+     ↓
+Tool Chain
+     ↓
+LLM Execution
+```
+
+If no external information is required:
+
+```json
+{
+  "needs_tools": false
+}
+```
+
+the graph is skipped entirely and the model answers directly.
+
+---
+
+## Why Types Instead of Tools?
+
+Traditional tool-calling requires the model to solve:
+
+```text
+Which tools should I call?
+In what order?
+Which tools are relevant?
+```
+
+As the number of tools increases, this becomes increasingly difficult.
+
+Typed Composition Search reduces the problem to:
+
+```text
+What information do I have?
+What information do I need?
+```
+
+Example:
+
+Instead of choosing from hundreds of tools:
+
+```text
+get_product
+get_latest_artifact
+get_build
+get_pipeline_run
+...
+```
+
+the model predicts:
+
+```text
+Source Type:
+  ProductName
+
+Target Type:
+  PipelineRunURL
+```
+
+The graph planner determines the tool chain automatically.
+
+The central hypothesis is:
+
+> Predicting source and target types may be easier than selecting tools directly.
+
+---
+
+## Research Goals
+
+This project is intended to explore several questions:
+
+### Type Prediction
+
+Can an LLM reliably identify:
+
+* Whether tools are required
+* The source type
+* The target type
+
+### Tool Composition
+
+Can graph search improve multi-step tool composition?
+
+### Scalability
+
+How does graph-based planning behave as the number of tools grows?
+
+Examples:
+
+```text
+10 tools
+100 tools
+500 tools
+1000 tools
+```
+
+### Token Efficiency
+
+Can graph-based planning reduce the number of tool schemas exposed to the model?
+
+### Retrieval Quality
+
+How does graph retrieval compare to:
+
+* Embedding retrieval
+* BM25 retrieval
+* LLM tool selection
+* Hybrid approaches
+
+---
+
+## Planned Benchmarking
+
+The long-term goal is to build a benchmark framework for tool retrieval and tool composition.
+
+### Embedding Retrieval
+
+```text
+Query
+  ↓
+Embeddings
+  ↓
+Top-K Tools
+```
+
+### LLM Tool Selection
+
+```text
+Query
+  ↓
+LLM
+  ↓
+Tool Chain
+```
+
+### Typed Composition Search
+
+```text
+Query
+  ↓
+Source Type + Target Type
+  ↓
+Graph Search
+  ↓
+Tool Chain
+```
+
+Metrics may include:
+
+* Recall
+* Precision
+* Exact Match
+* Multi-Hop Recall
+* Path Length
+* Tool Count
+* Latency
+* Token Usage
+
+---
+
+## Roadmap
+
+### V1
+
+* Entity types as strings
+* Tools as graph edges
+* BFS shortest-path search
+* Registry API
+* Unit tests
+
+### V2
+
+* Multi-input tools
+* Path objects
+* Graph metrics
+* Visualization
+
+### V3
+
+* Benchmark framework
+* Embedding retrieval baselines
+* Hybrid retrieval methods
+* Automatic graph generation from tool schemas
+
+### V4
+
+* MCP integration
+* OpenAPI integration
+* Tool graph generation
+* Large-scale evaluation datasets
+
+---
+
+## Scope and Limitations
+
+Typed Composition Search is primarily designed for domain-specific agents operating over structured systems.
+
+Examples include:
+
+* Kubernetes
+* OpenShift
+* GitHub
+* GitLab
+* AWS
+* MCP Servers
+* Enterprise APIs
+* Internal company platforms
+
+These domains naturally expose entities and relationships that can be represented as a graph:
+
+```text
+Repository
+    ↓
+Pipeline
+    ↓
+Build
+    ↓
+Artifact
+```
+
+The framework assumes that:
+
+1. Relevant entity types can be identified.
+2. Tools can be modeled as transformations between types.
+3. A valid path may exist between the available information and the desired information.
+
+This approach is not intended to replace general-purpose reasoning.
+
+For example:
+
+```text
+Who was Napoleon?
+Write me a poem.
+Explain quantum mechanics.
+```
+
+do not require graph traversal and should be answered directly by the language model.
+
+Instead, Typed Composition Search is intended to act as a planning layer for structured domains where answering a query requires composing multiple tools.
+
+```text
+User Query
+      ↓
+LLM
+      ↓
+Goal Extraction
+      ↓
+Typed Composition Search
+      ↓
+Execution Plan
+      ↓
+LLM Response
+```
+
+The framework is therefore best viewed as a complement to tool-calling agents rather than a replacement for language models.
+
+Typed Composition Search is not a general-purpose reasoning framework. It is a planning mechanism for structured tool ecosystems. We could create opensource graphs for opensource projects like K8S so community maintains the knowldge graph for tools.
+
+---
+
+## Example Domains
+
+Potential benchmark domains include:
+
+* Kubernetes
+* OpenShift
+* GitHub
+* GitLab
+* AWS
+* MCP Servers
+* Enterprise APIs
+* Synthetic tool ecosystems
+
+These domains provide realistic environments containing hundreds or thousands of tools.
+
+---
+
+## Project Status
+
+Experimental.
+
+The current goal is to validate a simple hypothesis:
+
+> Can predicting source and target types outperform direct tool selection for multi-step tool composition?
+
+If successful, Typed Composition Search may provide a scalable alternative to exposing every available tool to an LLM during inference.

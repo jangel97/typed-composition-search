@@ -8,43 +8,56 @@ from collections import defaultdict
 from benchmarks.llm import MODELS, get_llm_config, llm_completion
 
 
-SYSTEM_PROMPT = """You are a type predictor for a tool composition system.
+SYSTEM_PROMPT = """You are a tool selector.
+Given a user query, select the tools needed to answer it, in execution order.
 
-Given a user query, predict:
-- source_type: The entity type the user already has or starts from
-- target_type: The entity type the user wants to obtain
+Available tools:
+{tool_list}
 
-Available entity types:
-{entity_types}
-
-Respond ONLY with a JSON object:
-{{"source_type": "...", "target_type": "..."}}"""
+Respond ONLY with a JSON list of tool names: ["tool_a", "tool_b"]"""
 
 
-def build_system_prompt(entity_types: dict) -> str:
+def build_tool_prompt(registry) -> str:
     lines = []
-    for name, desc in sorted(entity_types.items()):
-        lines.append(f"- {name}: {desc}")
-    return SYSTEM_PROMPT.format(entity_types="\n".join(lines))
+    for tool in registry._tools:
+        inputs = ", ".join(tool.input_types)
+        outputs = ", ".join(tool.output_types)
+        lines.append(f"- {tool.name}: ({inputs}) → ({outputs})")
+    return SYSTEM_PROMPT.format(tool_list="\n".join(lines))
 
 
-def predict_types(config: dict, query: str, system: str) -> tuple[dict, float, int, int]:
+def select_tools(
+    config: dict,
+    query: str,
+    system: str,
+    valid_names: set[str],
+) -> tuple[list[str], list[str], int, int, float]:
     start = time.monotonic()
     response = llm_completion(config, [
         {"role": "system", "content": system},
         {"role": "user", "content": query},
     ])
     latency_ms = (time.monotonic() - start) * 1000
+
+    text = response.choices[0].message.content.strip()
+    start_idx = text.find("[")
+    end_idx = text.rfind("]") + 1
+    if start_idx == -1 or end_idx == 0:
+        predicted = []
+    else:
+        try:
+            predicted = json.loads(text[start_idx:end_idx])
+        except json.JSONDecodeError:
+            predicted = []
+
+    hallucinated = [t for t in predicted if t not in valid_names]
+    valid_predicted = [t for t in predicted if t in valid_names]
+
     usage = response.usage
     prompt_tokens = usage.prompt_tokens if usage else 0
     completion_tokens = usage.completion_tokens if usage else 0
 
-    text = response.choices[0].message.content.strip()
-    start_idx = text.find("{")
-    end_idx = text.rfind("}") + 1
-    if start_idx == -1 or end_idx == 0:
-        return {"source_type": "PARSE_ERROR", "target_type": "PARSE_ERROR"}, latency_ms, prompt_tokens, completion_tokens
-    return json.loads(text[start_idx:end_idx]), latency_ms, prompt_tokens, completion_tokens
+    return valid_predicted, hallucinated, prompt_tokens, completion_tokens, latency_ms
 
 
 def tool_set_metrics(resolved: set[str], expected: set[str]) -> tuple[float, float, float]:
@@ -71,105 +84,93 @@ def percentile(values: list[float], p: float) -> float:
     return sorted_vals[f] + (k - f) * (sorted_vals[c] - sorted_vals[f])
 
 
-def run_benchmark(model_name: str, domain: str):
+def run_baseline(model_name: str, domain: str):
     reg_mod = importlib.import_module(f"benchmarks.{domain}.registry")
     queries_mod = importlib.import_module(f"benchmarks.{domain}.queries")
     build_registry = reg_mod.build_registry
-    entity_types = reg_mod.ENTITY_TYPES
     queries = queries_mod.QUERIES
 
     config = get_llm_config(model_name)
     model_id = config["litellm_model"]
     registry = build_registry()
     total_tools = len(registry._tools)
-    system = build_system_prompt(entity_types)
+    valid_names = {t.name for t in registry._tools}
+    system = build_tool_prompt(registry)
 
-    print(f"\n=== {model_name} ({model_id}) ===")
-    print(f"Total tools in registry: {total_tools}\n")
+    print(f"\n=== BASELINE: {model_name} ({model_id}) ===")
+    print(f"Total tools in prompt: {total_tools}\n")
 
     header = (
         f"{'Query':<30} {'Category':<12} {'Prompt':<85} "
-        f"{'Expected S→T':<25} {'Predicted S→T':<25} "
-        f"{'Path':>4} {'Tools':>5} {'Prune':>6} {'Prec':>5} {'Rec':>5} {'F1':>5} {'ms':>6}"
+        f"{'Prec':>5} {'Rec':>5} {'F1':>5} {'EM':>3} {'Hall':>4} {'Tools':>5} {'Prune':>6} {'ms':>6}"
     )
     print(header)
     print("─" * len(header))
 
-    source_correct = 0
-    target_correct = 0
-    type_exact = 0
-    path_found_count = 0
     all_precision = []
     all_recall = []
     all_f1 = []
+    all_exact = []
     all_tool_counts = []
+    all_tool_count_err = []
+    all_hallucinated = 0
     all_latency = []
     all_prompt_tokens = []
     all_completion_tokens = []
 
     category_stats = defaultdict(lambda: {
-        "total": 0, "path_found": 0, "type_exact": 0, "f1_vals": [],
+        "total": 0, "exact": 0, "f1_vals": [], "hallucinated": 0,
     })
 
     for q in queries:
-        prediction, latency_ms, prompt_tok, completion_tok = predict_types(config, q["query"], system)
-        all_latency.append(latency_ms)
-        all_prompt_tokens.append(prompt_tok)
-        all_completion_tokens.append(completion_tok)
-        pred_source = prediction.get("source_type", "?")
-        pred_target = prediction.get("target_type", "?")
+        expected_tools = set(q.get("expected_tools", []))
+
+        valid_predicted, hallucinated, prompt_tok, completion_tok, latency_ms = select_tools(
+            config, q["query"], system, valid_names,
+        )
 
         cat = q.get("category", "clean")
         stats = category_stats[cat]
         stats["total"] += 1
+        stats["hallucinated"] += len(hallucinated)
 
-        expected_st = f"{q['source_type']}→{q['target_type']}"
-        predicted_st = f"{pred_source}→{pred_target}"
+        predicted_set = set(valid_predicted)
 
-        src_ok = pred_source == q["source_type"]
-        tgt_ok = pred_target == q["target_type"]
-        if src_ok:
-            source_correct += 1
-        if tgt_ok:
-            target_correct += 1
-        if src_ok and tgt_ok:
-            type_exact += 1
-            stats["type_exact"] += 1
-
-        path = registry.resolve(pred_source, pred_target)
-        path_found = path is not None
-        if path_found:
-            path_found_count += 1
-            stats["path_found"] += 1
-
-        expected_tools = set(q.get("expected_tools", []))
-        if path and expected_tools:
-            resolved_tools = {t.name for t in path.tools}
-            precision, recall, f1 = tool_set_metrics(resolved_tools, expected_tools)
-            n_tools = len(path.tools)
+        if expected_tools:
+            precision, recall, f1 = tool_set_metrics(predicted_set, expected_tools)
+            exact = 1 if predicted_set == expected_tools else 0
+            tool_count_err = abs(len(valid_predicted) - len(expected_tools))
             all_precision.append(precision)
             all_recall.append(recall)
             all_f1.append(f1)
+            all_exact.append(exact)
+            all_tool_count_err.append(tool_count_err)
             stats["f1_vals"].append(f1)
+            stats["exact"] += exact
         else:
             precision, recall, f1 = -1, -1, -1
-            n_tools = len(path.tools) if path else 0
+            exact = -1
 
-        all_tool_counts.append(n_tools)
+        all_tool_counts.append(len(valid_predicted))
+        all_hallucinated += len(hallucinated)
+        all_latency.append(latency_ms)
+        all_prompt_tokens.append(prompt_tok)
+        all_completion_tokens.append(completion_tok)
 
-        path_mark = "OK" if path_found else "MISS"
-        q_pruning = 1.0 - n_tools / total_tools if n_tools > 0 else -1
-        tools_str = f"{n_tools:>5}" if n_tools > 0 else "    —"
-        prune_str = f"{q_pruning:>5.0%}" if q_pruning >= 0 else "     —"
+        n_selected = len(valid_predicted)
+        q_pruning = 1.0 - n_selected / total_tools if n_selected > 0 else -1
         prec_str = f"{precision:>5.2f}" if precision >= 0 else "    —"
         rec_str = f"{recall:>5.2f}" if recall >= 0 else "    —"
         f1_str = f"{f1:>5.2f}" if f1 >= 0 else "    —"
+        em_str = f"{'Y' if exact == 1 else 'N':>3}" if exact >= 0 else "  —"
+        hall_str = f"{len(hallucinated):>4}" if hallucinated else "   0"
+        tools_str = f"{n_selected:>5}"
+        prune_str = f"{q_pruning:>5.0%}" if q_pruning >= 0 else "     —"
 
         prompt = q["query"][:82] + "..." if len(q["query"]) > 85 else q["query"]
         print(
             f"{q['id']:<30} {cat:<12} {prompt:<85} "
-            f"{expected_st:<25} {predicted_st:<25} "
-            f"{path_mark:>4} {tools_str} {prune_str} {prec_str} {rec_str} {f1_str} {latency_ms:>6.0f}"
+            f"{prec_str} {rec_str} {f1_str} {em_str} {hall_str} {tools_str} {prune_str} {latency_ms:>6.0f}"
         )
 
     n = len(queries)
@@ -182,19 +183,15 @@ def run_benchmark(model_name: str, domain: str):
         m = avg(xs)
         return math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
 
-    print(f"\nType Prediction ({n} queries):")
-    print(f"  Source accuracy:     {source_correct}/{n} ({source_correct/n:.0%})")
-    print(f"  Target accuracy:    {target_correct}/{n} ({target_correct/n:.0%})")
-    print(f"  Exact match:         {type_exact}/{n} ({type_exact/n:.0%})")
+    n_with_expected = len(all_precision)
 
-    print(f"\nPath Resolution:")
-    print(f"  Path found:         {path_found_count}/{n} ({path_found_count/n:.0%})")
-
-    if all_precision:
-        print(f"\nTool Accuracy (queries with expected tools):")
-        print(f"  Avg Precision:      {avg(all_precision):.2f} ± {std(all_precision):.2f}")
-        print(f"  Avg Recall:         {avg(all_recall):.2f} ± {std(all_recall):.2f}")
-        print(f"  Avg F1:             {avg(all_f1):.2f} ± {std(all_f1):.2f}")
+    print(f"\nTool Selection ({n_with_expected} queries with expected tools):")
+    print(f"  Avg Precision:      {avg(all_precision):.2f} ± {std(all_precision):.2f}")
+    print(f"  Avg Recall:         {avg(all_recall):.2f} ± {std(all_recall):.2f}")
+    print(f"  Avg F1:             {avg(all_f1):.2f} ± {std(all_f1):.2f}")
+    print(f"  Exact Match:        {sum(all_exact)}/{n_with_expected} ({sum(all_exact)/n_with_expected:.0%})" if n_with_expected else "")
+    print(f"  Hallucinated tools: {all_hallucinated} total across {n} queries")
+    print(f"  Avg tool count err: {avg(all_tool_count_err):.1f}")
 
     avg_tools = avg(all_tool_counts)
     pruning = 1.0 - avg_tools / total_tools
@@ -220,25 +217,30 @@ def run_benchmark(model_name: str, domain: str):
         f1_avg = avg(s["f1_vals"]) if s["f1_vals"] else -1
         cat_f1[cat] = f1_avg
         f1_str = f"f1={f1_avg:.2f}" if f1_avg >= 0 else "f1=—"
-        print(f"  {cat:<12} path={s['path_found']}/{n_cat}  type_exact={s['type_exact']}/{n_cat}  {f1_str}")
+        exact_count = s["exact"]
+        n_expected = len(s["f1_vals"])
+        em_str = f"em={exact_count}/{n_expected}" if n_expected else "em=—"
+        print(f"  {cat:<12} {em_str}  {f1_str}  hall={s['hallucinated']}")
 
+    avg_tools = avg(all_tool_counts)
     return {
-        "strategy": "graph",
+        "strategy": "baseline",
         "precision": avg(all_precision),
         "recall": avg(all_recall),
         "f1": avg(all_f1),
-        "hallucinated": 0,
+        "exact_match": sum(all_exact),
+        "exact_match_n": n_with_expected,
+        "hallucinated": all_hallucinated,
         "avg_tools": avg_tools,
         "total_tools": total_tools,
-        "pruning": pruning,
+        "pruning": 1.0 - avg_tools / total_tools,
+        "avg_tool_count_err": avg(all_tool_count_err),
         "latency_avg": avg(all_latency),
         "latency_p50": percentile(all_latency, 50),
         "latency_p95": percentile(all_latency, 95),
         "avg_prompt_tokens": avg(all_prompt_tokens),
         "avg_completion_tokens": avg(all_completion_tokens),
         "category_f1": cat_f1,
-        "path_found": path_found_count,
-        "path_found_pct": path_found_count / n,
         "n": n,
     }
 
@@ -252,7 +254,7 @@ def main():
     args = parser.parse_args()
 
     for model_name in args.models:
-        run_benchmark(model_name, args.domain)
+        run_baseline(model_name, args.domain)
 
 
 if __name__ == "__main__":

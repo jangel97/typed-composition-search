@@ -5,30 +5,34 @@ import math
 import time
 from collections import defaultdict
 
-from benchmarks.llm import MODELS, get_llm_config, llm_completion
+from benchmarks.llm import MODELS, EMBED_CONFIG, get_llm_config, llm_completion, get_embed_client
+from benchmarks.run_benchmark import SYSTEM_PROMPT, tool_set_metrics, percentile
+from benchmarks.run_retrieval import cosine_similarity, embed_texts
 
 
-SYSTEM_PROMPT = """You are a type predictor for a tool composition system.
+def narrow_types(
+    query_embedding: list[float],
+    type_embeddings: list[list[float]],
+    type_names: list[str],
+    k: int,
+) -> list[str]:
+    scored = []
+    for i, emb in enumerate(type_embeddings):
+        sim = cosine_similarity(query_embedding, emb)
+        scored.append((sim, i))
+    scored.sort(reverse=True)
+    return [type_names[idx] for _, idx in scored[:k]]
 
-Given a user query, predict:
-- source_type: The entity type the user already has or starts from
-- target_type: The entity type the user wants to obtain
 
-Available entity types:
-{entity_types}
-
-Respond ONLY with a JSON object:
-{{"source_type": "...", "target_type": "..."}}"""
-
-
-def build_system_prompt(entity_types: dict) -> str:
+def build_narrowed_prompt(entity_types: dict, narrowed_names: list[str]) -> str:
     lines = []
-    for name, desc in sorted(entity_types.items()):
+    for name in sorted(narrowed_names):
+        desc = entity_types.get(name, "")
         lines.append(f"- {name}: {desc}")
     return SYSTEM_PROMPT.format(entity_types="\n".join(lines))
 
 
-def predict_types(config: dict, query: str, system: str) -> tuple[dict, float, int, int]:
+def predict_types(config, query, system):
     start = time.monotonic()
     response = llm_completion(config, [
         {"role": "system", "content": system},
@@ -47,31 +51,7 @@ def predict_types(config: dict, query: str, system: str) -> tuple[dict, float, i
     return json.loads(text[start_idx:end_idx]), latency_ms, prompt_tokens, completion_tokens
 
 
-def tool_set_metrics(resolved: set[str], expected: set[str]) -> tuple[float, float, float]:
-    if not resolved and not expected:
-        return 1.0, 1.0, 1.0
-    if not resolved or not expected:
-        return 0.0, 0.0, 0.0
-    tp = len(resolved & expected)
-    precision = tp / len(resolved) if resolved else 0.0
-    recall = tp / len(expected) if expected else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-    return precision, recall, f1
-
-
-def percentile(values: list[float], p: float) -> float:
-    if not values:
-        return 0.0
-    sorted_vals = sorted(values)
-    k = (len(sorted_vals) - 1) * (p / 100.0)
-    f = int(k)
-    c = f + 1
-    if c >= len(sorted_vals):
-        return sorted_vals[f]
-    return sorted_vals[f] + (k - f) * (sorted_vals[c] - sorted_vals[f])
-
-
-def run_benchmark(model_name: str, domain: str):
+def run_benchmark_narrowed(model_name: str, domain: str, narrow_k: int):
     reg_mod = importlib.import_module(f"benchmarks.{domain}.registry")
     queries_mod = importlib.import_module(f"benchmarks.{domain}.queries")
     build_registry = reg_mod.build_registry
@@ -80,17 +60,26 @@ def run_benchmark(model_name: str, domain: str):
 
     config = get_llm_config(model_name)
     model_id = config["litellm_model"]
+    embed_client, embed_model = get_embed_client()
+
     registry = build_registry()
     total_tools = len(registry._tools)
-    system = build_system_prompt(entity_types)
 
-    print(f"\n=== {model_name} ({model_id}) ===")
-    print(f"Total tools in registry: {total_tools}\n")
+    type_names = sorted(entity_types.keys())
+    type_texts = [f"{name}: {entity_types[name]}" for name in type_names]
+
+    print(f"\n=== GRAPH-NARROWED (top-{narrow_k}): {model_name} ({model_id}) ===")
+    print(f"Embedding model: {embed_model}")
+    print(f"Total entity types: {len(type_names)}, narrowing to top-{narrow_k} per query\n")
+
+    print("Embedding entity types...", end=" ", flush=True)
+    type_embeddings = embed_texts(embed_client, type_texts, embed_model)
+    print("done.\n")
 
     header = (
-        f"{'Query':<30} {'Category':<12} {'Prompt':<85} "
+        f"{'Query':<30} {'Cat':<12} {'Prompt':<70} "
         f"{'Expected S→T':<25} {'Predicted S→T':<25} "
-        f"{'Path':>4} {'Tools':>5} {'Prune':>6} {'Prec':>5} {'Rec':>5} {'F1':>5} {'ms':>6}"
+        f"{'TR@k':>5} {'Path':>4} {'Prec':>5} {'Rec':>5} {'F1':>5} {'Tools':>5} {'Prune':>6} {'ms':>6}"
     )
     print(header)
     print("─" * len(header))
@@ -106,28 +95,44 @@ def run_benchmark(model_name: str, domain: str):
     all_latency = []
     all_prompt_tokens = []
     all_completion_tokens = []
+    all_type_recall_at_k = []
 
     category_stats = defaultdict(lambda: {
-        "total": 0, "path_found": 0, "type_exact": 0, "f1_vals": [],
+        "total": 0, "path_found": 0, "type_exact": 0, "f1_vals": [], "type_recall": [],
     })
 
     for q in queries:
-        prediction, latency_ms, prompt_tok, completion_tok = predict_types(config, q["query"], system)
-        all_latency.append(latency_ms)
-        all_prompt_tokens.append(prompt_tok)
-        all_completion_tokens.append(completion_tok)
-        pred_source = prediction.get("source_type", "?")
-        pred_target = prediction.get("target_type", "?")
-
         cat = q.get("category", "clean")
         stats = category_stats[cat]
         stats["total"] += 1
 
-        expected_st = f"{q['source_type']}→{q['target_type']}"
+        query_embedding = embed_texts(embed_client, [q["query"]], embed_model)[0]
+        narrowed_names = narrow_types(query_embedding, type_embeddings, type_names, narrow_k)
+
+        expected_src = q["source_type"]
+        expected_tgt = q["target_type"]
+        src_in = expected_src in narrowed_names
+        tgt_in = expected_tgt in narrowed_names
+        type_recall_k = (int(src_in) + int(tgt_in)) / 2.0
+        all_type_recall_at_k.append(type_recall_k)
+        stats["type_recall"].append(type_recall_k)
+
+        system = build_narrowed_prompt(entity_types, narrowed_names)
+        prediction, latency_ms, prompt_tok, completion_tok = predict_types(
+            config, q["query"], system,
+        )
+        all_latency.append(latency_ms)
+        all_prompt_tokens.append(prompt_tok)
+        all_completion_tokens.append(completion_tok)
+
+        pred_source = prediction.get("source_type", "?")
+        pred_target = prediction.get("target_type", "?")
+
+        expected_st = f"{expected_src}→{expected_tgt}"
         predicted_st = f"{pred_source}→{pred_target}"
 
-        src_ok = pred_source == q["source_type"]
-        tgt_ok = pred_target == q["target_type"]
+        src_ok = pred_source == expected_src
+        tgt_ok = pred_target == expected_tgt
         if src_ok:
             source_correct += 1
         if tgt_ok:
@@ -159,17 +164,18 @@ def run_benchmark(model_name: str, domain: str):
 
         path_mark = "OK" if path_found else "MISS"
         q_pruning = 1.0 - n_tools / total_tools if n_tools > 0 else -1
-        tools_str = f"{n_tools:>5}" if n_tools > 0 else "    —"
-        prune_str = f"{q_pruning:>5.0%}" if q_pruning >= 0 else "     —"
+        tr_str = f"{type_recall_k:>5.2f}"
         prec_str = f"{precision:>5.2f}" if precision >= 0 else "    —"
         rec_str = f"{recall:>5.2f}" if recall >= 0 else "    —"
         f1_str = f"{f1:>5.2f}" if f1 >= 0 else "    —"
+        tools_str = f"{n_tools:>5}" if n_tools > 0 else "    —"
+        prune_str = f"{q_pruning:>5.0%}" if q_pruning >= 0 else "     —"
 
-        prompt = q["query"][:82] + "..." if len(q["query"]) > 85 else q["query"]
+        prompt = q["query"][:67] + "..." if len(q["query"]) > 70 else q["query"]
         print(
-            f"{q['id']:<30} {cat:<12} {prompt:<85} "
+            f"{q['id']:<30} {cat:<12} {prompt:<70} "
             f"{expected_st:<25} {predicted_st:<25} "
-            f"{path_mark:>4} {tools_str} {prune_str} {prec_str} {rec_str} {f1_str} {latency_ms:>6.0f}"
+            f"{tr_str} {path_mark:>4} {prec_str} {rec_str} {f1_str} {tools_str} {prune_str} {latency_ms:>6.0f}"
         )
 
     n = len(queries)
@@ -182,19 +188,26 @@ def run_benchmark(model_name: str, domain: str):
         m = avg(xs)
         return math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
 
+    print(f"\nLabel Narrowing (top-{narrow_k} of {len(type_names)} types):")
+    print(f"  Avg Type Recall@{narrow_k}:  {avg(all_type_recall_at_k):.2f} ± {std(all_type_recall_at_k):.2f}")
+    src_in_count = sum(1 for q, tr in zip(queries, all_type_recall_at_k) if tr >= 0.5)
+    both_in_count = sum(1 for tr in all_type_recall_at_k if tr == 1.0)
+    print(f"  Source in top-{narrow_k}:    {src_in_count}/{n}")
+    print(f"  Both in top-{narrow_k}:      {both_in_count}/{n}")
+
     print(f"\nType Prediction ({n} queries):")
-    print(f"  Source accuracy:     {source_correct}/{n} ({source_correct/n:.0%})")
-    print(f"  Target accuracy:    {target_correct}/{n} ({target_correct/n:.0%})")
-    print(f"  Exact match:         {type_exact}/{n} ({type_exact/n:.0%})")
+    print(f"  Source accuracy:    {source_correct}/{n} ({source_correct/n:.0%})")
+    print(f"  Target accuracy:   {target_correct}/{n} ({target_correct/n:.0%})")
+    print(f"  Exact match:       {type_exact}/{n} ({type_exact/n:.0%})")
 
     print(f"\nPath Resolution:")
-    print(f"  Path found:         {path_found_count}/{n} ({path_found_count/n:.0%})")
+    print(f"  Path found:        {path_found_count}/{n} ({path_found_count/n:.0%})")
 
     if all_precision:
         print(f"\nTool Accuracy (queries with expected tools):")
-        print(f"  Avg Precision:      {avg(all_precision):.2f} ± {std(all_precision):.2f}")
-        print(f"  Avg Recall:         {avg(all_recall):.2f} ± {std(all_recall):.2f}")
-        print(f"  Avg F1:             {avg(all_f1):.2f} ± {std(all_f1):.2f}")
+        print(f"  Avg Precision:     {avg(all_precision):.2f} ± {std(all_precision):.2f}")
+        print(f"  Avg Recall:        {avg(all_recall):.2f} ± {std(all_recall):.2f}")
+        print(f"  Avg F1:            {avg(all_f1):.2f} ± {std(all_f1):.2f}")
 
     avg_tools = avg(all_tool_counts)
     pruning = 1.0 - avg_tools / total_tools
@@ -204,13 +217,13 @@ def run_benchmark(model_name: str, domain: str):
     print(f"  Avg pruning:       {pruning:.0%} ± {std(all_pruning):.0%}" if all_pruning else "  Avg pruning:       —")
 
     print(f"\nLatency:")
-    print(f"  Avg:                {avg(all_latency):.0f}ms")
-    print(f"  P50:                {percentile(all_latency, 50):.0f}ms")
-    print(f"  P95:                {percentile(all_latency, 95):.0f}ms")
+    print(f"  Avg:               {avg(all_latency):.0f}ms")
+    print(f"  P50:               {percentile(all_latency, 50):.0f}ms")
+    print(f"  P95:               {percentile(all_latency, 95):.0f}ms")
 
     print(f"\nTokens:")
-    print(f"  Avg prompt:         {avg(all_prompt_tokens):.0f}")
-    print(f"  Avg completion:     {avg(all_completion_tokens):.0f}")
+    print(f"  Avg prompt:        {avg(all_prompt_tokens):.0f}")
+    print(f"  Avg completion:    {avg(all_completion_tokens):.0f}")
 
     print(f"\nBy Category:")
     cat_f1 = {}
@@ -220,10 +233,12 @@ def run_benchmark(model_name: str, domain: str):
         f1_avg = avg(s["f1_vals"]) if s["f1_vals"] else -1
         cat_f1[cat] = f1_avg
         f1_str = f"f1={f1_avg:.2f}" if f1_avg >= 0 else "f1=—"
-        print(f"  {cat:<12} path={s['path_found']}/{n_cat}  type_exact={s['type_exact']}/{n_cat}  {f1_str}")
+        tr_avg = avg(s["type_recall"]) if s["type_recall"] else -1
+        tr_str = f"tr@{narrow_k}={tr_avg:.2f}" if tr_avg >= 0 else f"tr@{narrow_k}=—"
+        print(f"  {cat:<12} path={s['path_found']}/{n_cat}  type_exact={s['type_exact']}/{n_cat}  {f1_str}  {tr_str}")
 
     return {
-        "strategy": "graph",
+        "strategy": f"graph-narrowed (top-{narrow_k})",
         "precision": avg(all_precision),
         "recall": avg(all_recall),
         "f1": avg(all_f1),
@@ -231,6 +246,7 @@ def run_benchmark(model_name: str, domain: str):
         "avg_tools": avg_tools,
         "total_tools": total_tools,
         "pruning": pruning,
+        "type_recall_at_k": avg(all_type_recall_at_k),
         "latency_avg": avg(all_latency),
         "latency_p50": percentile(all_latency, 50),
         "latency_p95": percentile(all_latency, 95),
@@ -246,13 +262,15 @@ def run_benchmark(model_name: str, domain: str):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("models", nargs="*", default=list(MODELS.keys()),
-                        help="Models to benchmark (default: all). Options: " + ", ".join(MODELS.keys()))
+                        help="Models to benchmark (default: all)")
+    parser.add_argument("--narrow-k", type=int, default=10,
+                        help="Number of entity types to narrow to (default: 10)")
     parser.add_argument("--domain", default="k8s",
-                        help="Tool domain to benchmark (default: k8s). Must be a subpackage under benchmarks/.")
+                        help="Tool domain to benchmark (default: k8s)")
     args = parser.parse_args()
 
     for model_name in args.models:
-        run_benchmark(model_name, args.domain)
+        run_benchmark_narrowed(model_name, args.domain, args.narrow_k)
 
 
 if __name__ == "__main__":

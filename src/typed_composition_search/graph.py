@@ -1,70 +1,71 @@
 from collections import deque
+from dataclasses import dataclass
 
 from .tool import Tool
 
 
-class CapabilityGraph:
-    def __init__(self, tools: list[Tool]) -> None:
-        self.tools = tools
-        self._consumers: dict[str, set[Tool]] = {}
-        self._producers: dict[str, set[Tool]] = {}
+@dataclass(frozen=True)
+class Path:
+    types: list[str]
+    tools: list[Tool]
 
-        for tool in tools:
-            for t in tool.inputs:
-                self._consumers.setdefault(t, set()).add(tool)
-            for t in tool.outputs:
-                self._producers.setdefault(t, set()).add(tool)
 
-    def forward_reachable(
-        self,
-        initial: set[str],
-        *,
-        exclude_sources: bool = False,
-        max_depth: int | None = None,
-    ) -> tuple[set[str], set[Tool]]:
-        available = set(initial)
-        fired: set[Tool] = set()
-        depth = 0
+class Graph:
+    def __init__(self) -> None:
+        self._edges: dict[str, list[Tool]] = {}
+        self._reverse_edges: dict[str, list[Tool]] = {}
 
-        changed = True
-        while changed:
-            if max_depth is not None and depth >= max_depth:
-                break
-            changed = False
-            for tool in self.tools:
-                if tool in fired:
-                    continue
-                if exclude_sources and not tool.inputs:
-                    continue
-                if tool.inputs <= available:
-                    available |= tool.outputs
-                    fired.add(tool)
-                    changed = True
-            depth += 1
+    def add_tool(self, tool: Tool) -> None:
+        for input_type in tool.input_types:
+            self._edges.setdefault(input_type, []).append(tool)
+        for output_type in tool.output_types:
+            self._reverse_edges.setdefault(output_type, []).append(tool)
 
-        return available, fired
+    def find_path(self, source: str, target: str) -> Path | None:
+        if source == target:
+            return Path(types=[source], tools=[])
 
-    def backward_reachable(
-        self,
-        goal: set[str],
-        *,
-        max_depth: int | None = None,
-    ) -> tuple[set[str], set[Tool]]:
-        needed = set(goal)
-        used: set[Tool] = set()
-        queue: deque[tuple[str, int]] = deque((t, 0) for t in goal)
+        visited: set[str] = {source}
+        queue: deque[tuple[str, list[str], list[Tool]]] = deque()
+        queue.append((source, [source], []))
 
         while queue:
-            t, depth = queue.popleft()
-            if max_depth is not None and depth >= max_depth:
-                continue
-            for tool in self._producers.get(t, ()):
-                if tool in used:
-                    continue
-                used.add(tool)
-                for inp in tool.inputs:
-                    if inp not in needed:
-                        needed.add(inp)
-                        queue.append((inp, depth + 1))
+            current, types, tools = queue.popleft()
+            for tool in self._edges.get(current, []):
+                for next_type in tool.output_types:
+                    if next_type in visited:
+                        continue
+                    new_types = types + [next_type]
+                    new_tools = tools + [tool]
+                    if next_type == target:
+                        return Path(types=new_types, tools=new_tools)
+                    visited.add(next_type)
+                    queue.append((next_type, new_types, new_tools))
 
-        return needed, used
+        return None
+
+    def reachable_types(self, source: str) -> set[str]:
+        visited: set[str] = {source}
+        queue: deque[str] = deque([source])
+        while queue:
+            current = queue.popleft()
+            for tool in self._edges.get(current, []):
+                for next_type in tool.output_types:
+                    if next_type not in visited:
+                        visited.add(next_type)
+                        queue.append(next_type)
+        visited.discard(source)
+        return visited
+
+    def reverse_reachable_types(self, target: str) -> set[str]:
+        visited: set[str] = {target}
+        queue: deque[str] = deque([target])
+        while queue:
+            current = queue.popleft()
+            for tool in self._reverse_edges.get(current, []):
+                for input_type in tool.input_types:
+                    if input_type not in visited:
+                        visited.add(input_type)
+                        queue.append(input_type)
+        visited.discard(target)
+        return visited
