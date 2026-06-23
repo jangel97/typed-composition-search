@@ -8,6 +8,7 @@ from benchmarks.run_benchmark_narrowed import run_benchmark_narrowed
 from benchmarks.run_benchmark_probs import run_benchmark_probs
 from benchmarks.run_benchmark_reverse import run_benchmark_reverse
 from benchmarks.run_benchmark_reverse_probs import run_benchmark_reverse_probs
+from benchmarks.run_benchmark_constrained import run_benchmark_constrained
 
 
 def fmt(val, fmt_str=".2f", na="—"):
@@ -163,6 +164,11 @@ def main():
     print(f"  Running GRAPH-REVERSE-PROBS benchmark...")
     print("=" * 80)
     results.append(run_benchmark_reverse_probs(args.model, args.domain, args.n_completions, args.threshold, args.max_candidates))
+
+    print("\n" + "=" * 80)
+    print(f"  Running CONSTRAINED-REVERSE benchmark...")
+    print("=" * 80)
+    results.append(run_benchmark_constrained(args.model, args.domain, args.n_completions, args.threshold, args.max_candidates))
 
     print("\n" + "=" * 80)
     print(f"  Running BASELINE benchmark...")

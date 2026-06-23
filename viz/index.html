@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Typed Composition Graph</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.4/cytoscape.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e0e0e0; }
+  #cy { width: 100%; height: 100vh; }
+  #controls {
+    position: fixed; top: 16px; left: 16px; z-index: 10;
+    background: #1a1d27; border: 1px solid #2a2d3a; border-radius: 10px;
+    padding: 16px; width: 300px; display: flex; flex-direction: column; gap: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  #controls h2 { font-size: 14px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; }
+  #controls-header { display: flex; justify-content: space-between; align-items: center; }
+  #toggle-btn {
+    background: none; border: none; color: #9ca3af; font-size: 18px;
+    cursor: pointer; padding: 0 4px; line-height: 1; width: auto;
+  }
+  #toggle-btn:hover { color: #e0e0e0; background: none; }
+  #controls-body { display: flex; flex-direction: column; gap: 12px; }
+  #controls.collapsed #controls-body { display: none; }
+  #controls.collapsed { width: auto; }
+  input, select {
+    background: #0f1117; border: 1px solid #2a2d3a; border-radius: 6px;
+    padding: 8px 10px; color: #e0e0e0; font-size: 13px; width: 100%;
+    outline: none; transition: border-color 0.15s;
+  }
+  select { cursor: pointer; }
+  input:focus, select:focus { border-color: #6366f1; }
+  input::placeholder { color: #555; }
+  button {
+    background: #6366f1; border: none; border-radius: 6px;
+    padding: 8px 14px; color: #fff; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: background 0.15s;
+  }
+  button:hover { background: #4f46e5; }
+  button.secondary { background: #2a2d3a; }
+  button.secondary:hover { background: #3a3d4a; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  #info {
+    position: fixed; bottom: 16px; left: 16px; z-index: 10;
+    background: #1a1d27; border: 1px solid #2a2d3a; border-radius: 10px;
+    padding: 12px 16px; font-size: 12px; color: #9ca3af;
+    max-width: 400px; display: none;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  #info .tool-name { color: #6366f1; font-weight: 600; }
+  #info .type-label { color: #34d399; }
+  #path-result {
+    font-size: 12px; color: #9ca3af; line-height: 1.5;
+    max-height: 120px; overflow-y: auto;
+  }
+  #path-result .path-type { color: #34d399; font-weight: 500; }
+  #path-result .path-tool { color: #6366f1; }
+  #stats { font-size: 11px; color: #555; }
+  .section-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .section-header:hover h2 { color: #e0e0e0; }
+  .section-toggle {
+    background: none; border: none; color: #9ca3af; font-size: 14px;
+    cursor: pointer; padding: 0 4px; line-height: 1; width: auto;
+  }
+  .section-toggle:hover { color: #e0e0e0; background: none; }
+  #metrics-body { display: none; }
+  #metrics-body.open { display: block; }
+  .metric-group { margin-bottom: 8px; }
+  .metric-group-title { font-size: 11px; color: #6366f1; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .metric-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+  .metric-label { color: #9ca3af; }
+  .metric-value { color: #e0e0e0; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .metric-list { font-size: 11px; color: #9ca3af; padding-left: 8px; }
+  .metric-list-item { padding: 1px 0; }
+  .metric-list-item .type-name { color: #34d399; }
+  .metric-list-item .score { color: #e0e0e0; }
+  .metric-row[data-hint], .metric-row.has-hint { cursor: help; }
+  #metric-tooltip {
+    position: fixed; z-index: 20;
+    background: #252833; border: 1px solid #3a3d4a; border-radius: 6px;
+    padding: 8px 10px; font-size: 11px; color: #c0c0c0; line-height: 1.4;
+    max-width: 260px; pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div id="controls">
+  <div id="controls-header">
+    <h2>Typed Composition Graph</h2>
+    <button id="toggle-btn" title="Minimize">&#x2212;</button>
+  </div>
+  <div id="controls-body">
+    <select id="graph-select"></select>
+    <input id="search" type="text" placeholder="Search types..." autocomplete="off">
+    <h2>Find Path</h2>
+    <div class="row">
+      <input id="source" type="text" placeholder="Source type">
+      <input id="target" type="text" placeholder="Target type">
+    </div>
+    <div class="row">
+      <button id="find-path">Find Path</button>
+      <button id="reset" class="secondary">Reset</button>
+    </div>
+    <div id="path-result"></div>
+    <div id="stats"></div>
+    <div class="section-header" id="metrics-header">
+      <h2>Metrics</h2>
+      <button class="section-toggle" id="metrics-toggle" title="Expand">&#x002B;</button>
+    </div>
+    <div id="metrics-body"></div>
+  </div>
+</div>
+<div id="info"></div>
+<div id="metric-tooltip"></div>
+<div id="cy"></div>
+
+<script>
+const allGraphs = window.allGraphs;
+let currentData = null;
+let cy = null;
+
+const STYLES = [
+  {
+    selector: 'node',
+    style: {
+      'label': 'data(label)',
+      'background-color': '#6366f1',
+      'color': '#e0e0e0',
+      'font-size': '10px',
+      'text-valign': 'center',
+      'text-halign': 'center',
+      'width': 'label',
+      'height': 'label',
+      'padding': '10px',
+      'shape': 'round-rectangle',
+      'border-width': 0,
+      'text-wrap': 'none',
+      'font-family': 'system-ui, -apple-system, sans-serif',
+    }
+  },
+  {
+    selector: 'edge',
+    style: {
+      'width': 1.5,
+      'line-color': '#2a2d3a',
+      'target-arrow-color': '#2a2d3a',
+      'target-arrow-shape': 'triangle',
+      'curve-style': 'bezier',
+      'arrow-scale': 0.8,
+      'label': 'data(label)',
+      'font-size': '8px',
+      'color': '#555',
+      'text-rotation': 'autorotate',
+      'text-margin-y': -8,
+      'font-family': 'system-ui, -apple-system, sans-serif',
+    }
+  },
+  {
+    selector: 'node.highlighted',
+    style: { 'background-color': '#34d399', 'color': '#0f1117', 'border-width': 2, 'border-color': '#34d399' }
+  },
+  {
+    selector: 'edge.highlighted',
+    style: { 'line-color': '#34d399', 'target-arrow-color': '#34d399', 'width': 3, 'color': '#34d399', 'font-size': '9px', 'z-index': 10 }
+  },
+  {
+    selector: 'node.dimmed',
+    style: { 'opacity': 0.15 }
+  },
+  {
+    selector: 'edge.dimmed',
+    style: { 'opacity': 0.08 }
+  },
+  {
+    selector: 'node.search-match',
+    style: { 'background-color': '#f59e0b', 'color': '#0f1117', 'border-width': 2, 'border-color': '#f59e0b' }
+  },
+];
+
+function loadGraph(name) {
+  currentData = allGraphs[name];
+  const elements = [];
+  currentData.nodes.forEach(n => {
+    elements.push({ data: { id: n.id, label: n.id } });
+  });
+  currentData.edges.forEach((e, i) => {
+    elements.push({ data: { id: 'e' + i, source: e.source, target: e.target, label: e.label } });
+  });
+
+  if (cy) cy.destroy();
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: elements,
+    style: STYLES,
+    layout: {
+      name: 'cose',
+      animate: false,
+      nodeRepulsion: 80000,
+      idealEdgeLength: 120,
+      gravity: 0.3,
+      numIter: 1000,
+      nodeDimensionsIncludeLabels: true,
+    },
+    wheelSensitivity: 0.3,
+  });
+
+  document.getElementById('stats').textContent =
+    `${currentData.nodes.length} types, ${currentData.edges.length} edges`;
+
+  // Render metrics
+  renderMetrics(currentData.metrics);
+
+  // Clear controls
+  document.getElementById('search').value = '';
+  document.getElementById('source').value = '';
+  document.getElementById('target').value = '';
+  document.getElementById('path-result').innerHTML = '';
+
+  // Hover info
+  const infoDiv = document.getElementById('info');
+  cy.on('mouseover', 'node', evt => {
+    const node = evt.target;
+    const incoming = node.incomers('edge').map(e => e.data('label'));
+    const outgoing = node.outgoers('edge').map(e => e.data('label'));
+    let html = `<span class="type-label">${node.data('label')}</span><br>`;
+    if (incoming.length) html += `In: ${incoming.map(t => `<span class="tool-name">${t}</span>`).join(', ')}<br>`;
+    if (outgoing.length) html += `Out: ${outgoing.map(t => `<span class="tool-name">${t}</span>`).join(', ')}`;
+    infoDiv.innerHTML = html;
+    infoDiv.style.display = 'block';
+  });
+  cy.on('mouseout', 'node', () => { infoDiv.style.display = 'none'; });
+}
+
+const METRIC_LABELS = {
+  node_count: 'Nodes', edge_count: 'Edges',
+  avg_in_degree: 'Avg in-degree', avg_out_degree: 'Avg out-degree',
+  max_in_degree: 'Max in-degree', max_out_degree: 'Max out-degree',
+  connected_components: 'Components',
+  reachable_pairs_pct: 'Reachable pairs', avg_shortest_path_length: 'Avg path length',
+  diameter: 'Diameter', avg_reachable_sources_per_target: 'Avg sources/target',
+  avg_reachable_targets_per_source: 'Avg targets/source',
+  avg_branching_factor: 'Avg branching', max_branching_factor: 'Max branching',
+};
+const METRIC_HINTS = {
+  node_count: 'Total number of entity types represented in the graph.',
+  edge_count: 'Total number of type-to-type transitions induced by tools.',
+  avg_in_degree: 'Average number of incoming transitions per type. Higher values indicate more alternative ways to reach a type.',
+  avg_out_degree: 'Average number of outgoing transitions per type. Higher values indicate more composition choices from a type.',
+  max_in_degree: 'Maximum number of incoming transitions for a single type. Identifies highly convergent types.',
+  max_out_degree: 'Maximum number of outgoing transitions for a single type. Identifies highly connected source types.',
+  connected_components: 'Number of disconnected subgraphs. Multiple components suggest the graph naturally decomposes into independent domains.',
+  reachable_pairs_pct: 'Percentage of all possible (source, target) pairs that are reachable. Lower values indicate stronger graph-based pruning and a smaller effective planning space.',
+  avg_shortest_path_length: 'Average shortest-path distance between reachable pairs. Represents the typical composition depth required to connect two types.',
+  diameter: 'Longest shortest path in the graph. Represents the maximum composition depth required between any two reachable types.',
+  avg_reachable_sources_per_target: 'Average number of source types that can reach a target type. Lower values indicate stronger pruning for target-first (Graph-Reverse) routing.',
+  avg_reachable_targets_per_source: 'Average number of target types reachable from a source type. Indicates the average action space available from a given starting type.',
+  avg_branching_factor: 'Average number of outgoing transitions among non-leaf types. Measures how quickly the search space expands during graph traversal.',
+  max_branching_factor: 'Largest branching factor observed in the graph. Represents the worst-case expansion during BFS.',
+  top_betweenness: 'Types with the highest betweenness centrality. These act as composition hubs through which many shortest paths pass.',
+  top_pagerank: 'Types with the highest PageRank scores. These represent structurally important types within the graph.',
+};
+const GROUP_LABELS = {
+  structural: 'Structural', reachability: 'Reachability',
+  search_space: 'Search Space', centrality: 'Centrality',
+};
+
+function renderMetrics(metrics) {
+  const body = document.getElementById('metrics-body');
+  let html = '';
+  for (const [group, values] of Object.entries(metrics)) {
+    html += `<div class="metric-group"><div class="metric-group-title">${GROUP_LABELS[group] || group}</div>`;
+    if (group === 'centrality') {
+      for (const [key, items] of Object.entries(values)) {
+        const label = key === 'top_betweenness' ? 'Betweenness' : 'PageRank';
+        const hint = METRIC_HINTS[key] || '';
+        html += `<div class="metric-row has-hint" data-hint="${hint}"><span class="metric-label">${label}</span></div>`;
+        html += '<div class="metric-list">';
+        items.forEach(item => {
+          html += `<div class="metric-list-item"><span class="type-name">${item.type}</span> <span class="score">${item.score}</span></div>`;
+        });
+        html += '</div>';
+      }
+    } else {
+      for (const [key, value] of Object.entries(values)) {
+        const label = METRIC_LABELS[key] || key;
+        const hint = METRIC_HINTS[key] || '';
+        const display = key === 'reachable_pairs_pct' ? `${value}%` : value;
+        html += `<div class="metric-row" data-hint="${hint}"><span class="metric-label">${label}</span><span class="metric-value">${display}</span></div>`;
+      }
+    }
+    html += '</div>';
+  }
+  body.innerHTML = html;
+}
+
+document.getElementById('metrics-header').addEventListener('click', () => {
+  const body = document.getElementById('metrics-body');
+  const btn = document.getElementById('metrics-toggle');
+  body.classList.toggle('open');
+  btn.innerHTML = body.classList.contains('open') ? '&#x2212;' : '&#x002B;';
+  btn.title = body.classList.contains('open') ? 'Collapse' : 'Expand';
+});
+
+// Populate dropdown
+const graphSelect = document.getElementById('graph-select');
+const names = Object.keys(allGraphs);
+names.forEach(name => {
+  const opt = document.createElement('option');
+  opt.value = name;
+  opt.textContent = name;
+  graphSelect.appendChild(opt);
+});
+graphSelect.addEventListener('change', () => loadGraph(graphSelect.value));
+
+// Load first graph
+loadGraph(names[0]);
+
+// Search
+const searchInput = document.getElementById('search');
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim().toLowerCase();
+  cy.elements().removeClass('dimmed search-match');
+  if (!q) return;
+  const matched = cy.nodes().filter(n => n.data('label').toLowerCase().includes(q));
+  if (matched.length > 0) {
+    cy.elements().addClass('dimmed');
+    matched.removeClass('dimmed').addClass('search-match');
+    matched.connectedEdges().removeClass('dimmed');
+    matched.connectedEdges().connectedNodes().removeClass('dimmed');
+  }
+});
+
+// BFS pathfinding
+function findPath(source, target) {
+  if (source === target) return { types: [source], tools: [] };
+  const adj = {};
+  currentData.edges.forEach(e => {
+    if (!adj[e.source]) adj[e.source] = [];
+    adj[e.source].push({ target: e.target, label: e.label });
+  });
+  const visited = new Set([source]);
+  const queue = [{ node: source, types: [source], tools: [] }];
+  while (queue.length > 0) {
+    const { node, types, tools } = queue.shift();
+    for (const edge of (adj[node] || [])) {
+      if (visited.has(edge.target)) continue;
+      const newTypes = [...types, edge.target];
+      const newTools = [...tools, edge.label];
+      if (edge.target === target) return { types: newTypes, tools: newTools };
+      visited.add(edge.target);
+      queue.push({ node: edge.target, types: newTypes, tools: newTools });
+    }
+  }
+  return null;
+}
+
+document.getElementById('find-path').addEventListener('click', () => {
+  const source = document.getElementById('source').value.trim();
+  const target = document.getElementById('target').value.trim();
+  const resultDiv = document.getElementById('path-result');
+  cy.elements().removeClass('highlighted dimmed search-match');
+  searchInput.value = '';
+
+  if (!source || !target) { resultDiv.innerHTML = 'Enter source and target types.'; return; }
+
+  const path = findPath(source, target);
+  if (!path) { resultDiv.innerHTML = `No path from <span class="path-type">${source}</span> to <span class="path-type">${target}</span>.`; return; }
+
+  cy.elements().addClass('dimmed');
+  path.types.forEach(t => {
+    cy.getElementById(t).removeClass('dimmed').addClass('highlighted');
+  });
+  for (let i = 0; i < path.tools.length; i++) {
+    const src = path.types[i], tgt = path.types[i + 1], tool = path.tools[i];
+    cy.edges().filter(e =>
+      e.data('source') === src && e.data('target') === tgt && e.data('label') === tool
+    ).removeClass('dimmed').addClass('highlighted');
+  }
+
+  let html = '';
+  for (let i = 0; i < path.types.length; i++) {
+    html += `<span class="path-type">${path.types[i]}</span>`;
+    if (i < path.tools.length) html += ` <span class="path-tool">&rarr; ${path.tools[i]} &rarr;</span> `;
+  }
+  resultDiv.innerHTML = html;
+
+  const pathNodes = cy.collection();
+  path.types.forEach(t => pathNodes.merge(cy.getElementById(t)));
+  cy.fit(pathNodes, 80);
+});
+
+document.getElementById('toggle-btn').addEventListener('click', () => {
+  const controls = document.getElementById('controls');
+  const btn = document.getElementById('toggle-btn');
+  controls.classList.toggle('collapsed');
+  btn.innerHTML = controls.classList.contains('collapsed') ? '&#x002B;' : '&#x2212;';
+  btn.title = controls.classList.contains('collapsed') ? 'Expand' : 'Minimize';
+});
+
+document.getElementById('reset').addEventListener('click', () => {
+  cy.elements().removeClass('highlighted dimmed search-match');
+  searchInput.value = '';
+  document.getElementById('source').value = '';
+  document.getElementById('target').value = '';
+  document.getElementById('path-result').innerHTML = '';
+  cy.fit(undefined, 30);
+});
+
+// Metric tooltip with 1s hover delay
+const tooltip = document.getElementById('metric-tooltip');
+let hintTimer = null;
+document.getElementById('metrics-body').addEventListener('mouseover', evt => {
+  const row = evt.target.closest('[data-hint]');
+  if (!row || !row.dataset.hint) return;
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => {
+    tooltip.textContent = row.dataset.hint;
+    const rect = row.getBoundingClientRect();
+    tooltip.style.left = (rect.right + 8) + 'px';
+    tooltip.style.top = rect.top + 'px';
+    // Keep tooltip on screen
+    tooltip.style.display = 'block';
+    const tr = tooltip.getBoundingClientRect();
+    if (tr.right > window.innerWidth - 8) {
+      tooltip.style.left = (rect.left - tr.width - 8) + 'px';
+    }
+    if (tr.bottom > window.innerHeight - 8) {
+      tooltip.style.top = (window.innerHeight - tr.height - 8) + 'px';
+    }
+  }, 1000);
+});
+document.getElementById('metrics-body').addEventListener('mouseout', evt => {
+  const row = evt.target.closest('[data-hint]');
+  if (!row) return;
+  clearTimeout(hintTimer);
+  tooltip.style.display = 'none';
+});
+</script>
+</body>
+</html>

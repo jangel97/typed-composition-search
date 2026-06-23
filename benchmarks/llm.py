@@ -43,13 +43,16 @@ def get_llm_config(model_name: str) -> dict:
 
 
 def llm_completion(config: dict, messages: list[dict], temperature: float = 0, **kwargs) -> "litellm.ModelResponse":
+    extra_params = dict(config.get("extra_params", {}))
+    if "extra_body" in kwargs and "extra_body" in extra_params:
+        extra_params["extra_body"] = {**extra_params["extra_body"], **kwargs.pop("extra_body")}
     return litellm.completion(
         model=config["litellm_model"],
         messages=messages,
         temperature=temperature,
         api_key=config["api_key"],
         api_base=config["api_base"],
-        **config.get("extra_params", {}),
+        **extra_params,
         **kwargs,
     )
 

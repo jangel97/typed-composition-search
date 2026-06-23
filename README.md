@@ -417,6 +417,29 @@ Metrics may include:
 
 ---
 
+## Graph Visualization
+
+An interactive browser-based visualizer for composition graphs.
+
+```bash
+# Visualize one or more registries
+uv run python viz/serve.py benchmarks/k8s/registry.py
+uv run python viz/serve.py benchmarks/k8s/registry.py benchmarks/ansible/registry.py
+```
+
+This opens a self-contained HTML page with:
+
+* **Graph rendering** — force-directed layout of entity types and tool edges
+* **Graph selector** — dropdown to switch between registries (when multiple are provided)
+* **Search** — filter and highlight types by name
+* **Path finding** — enter source and target types to highlight the shortest composition path
+* **Metrics panel** — expandable section showing structural, reachability, search-space, and centrality metrics with hover explanations
+* **Node hover** — shows incoming and outgoing tools for each type
+
+The visualizer accepts any `registry.py` file that exports a `build_registry()` function returning a `Registry` instance. The dropdown name is derived from the parent directory.
+
+---
+
 ## Roadmap
 
 ### V1
