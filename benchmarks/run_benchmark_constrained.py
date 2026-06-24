@@ -7,7 +7,7 @@ from benchmarks.llm import get_llm_config, llm_completion
 from benchmarks.metrics import avg, std, build_type_list, format_metric, format_pruning, format_tools
 from benchmarks.run_benchmark_probs import parse_completions, filter_candidates, DEFAULT_THRESHOLD, DEFAULT_MAX_CANDIDATES
 from benchmarks.report import BenchmarkReport
-
+# https://docs.vllm.ai/en/latest/features/structured_outputs/
 
 Q1_TARGET_PROMPT = """Given the user query, which entity type does the user WANT TO OBTAIN or FIND?
 

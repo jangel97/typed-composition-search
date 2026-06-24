@@ -91,3 +91,26 @@ Measure:
 * Graph F1 using probabilistic candidate expansion
 
 If Recall@K is significantly higher than top-1 accuracy, this would indicate that the correct types are often present among the model's alternatives and that graph planning can exploit this uncertainty to improve robustness.
+
+
+## Type Prediction as a Simpler Proxy for Tool Selection
+
+### Hypothesis
+
+If an LLM struggles to correctly identify user intent at the type level (source/target entity types), it will also struggle to select the correct tools from a flat list — the intent understanding problem is the same, just expressed differently.
+
+However, predicting types is a strictly simpler problem than predicting tools:
+- Fewer candidates (~40 types vs ~135 tools)
+- Higher-level abstraction (what the user wants, not how to get it)
+- No need to reason about execution order or composability
+
+### What to Validate
+
+- Compare type prediction accuracy vs direct tool selection accuracy on the same queries and model
+- If both fail on the same queries, it confirms intent understanding is the bottleneck, not the selection mechanism
+- If types succeed where tools fail, it shows the graph decomposition genuinely simplifies the problem
+- Measure per-category: are ambiguous/synonym queries hard for both, while clean queries are easy for both?
+
+### Why It Matters
+
+This would demonstrate that typed composition graphs don't just prune the search space — they reduce the cognitive load on the LLM by converting a complex multi-tool selection problem into two simpler classification problems over a smaller label space.

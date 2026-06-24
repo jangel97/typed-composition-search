@@ -21,3 +21,7 @@ venv/
 
 # OS
 .DS_Store
+
+# Benchmark outputs
+benchmarks/results/
+benchmarks/report.html
