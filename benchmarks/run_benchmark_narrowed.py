@@ -5,7 +5,7 @@ import time
 
 from benchmarks.llm import MODELS, get_llm_config, llm_completion, get_embed_client
 from benchmarks.metrics import avg, std, format_metric, format_pruning, format_tools
-from benchmarks.report import BenchmarkReport
+from benchmarks.report import BenchmarkReport, query_graph_metrics
 from benchmarks.run_benchmark import SYSTEM_PROMPT
 from benchmarks.run_retrieval import cosine_similarity, embed_texts
 
@@ -141,6 +141,14 @@ def run_benchmark_narrowed(model_name: str, domain: str, narrow_k: int):
         resolved_tools = {t.name for t in path.tools} if path else set()
         n_tools = len(path.tools) if path else 0
         precision, recall, f1 = report.record_tool_result(resolved_tools, expected_tools, n_tools, cat)
+        report.record_query(
+            q["id"], cat, expected_tools, resolved_tools,
+            precision, recall, f1, latency_ms, n_tools,
+            expected_source=expected_src, expected_target=expected_tgt,
+            predicted_source=pred_source, predicted_target=pred_target,
+            path_found=path_found, type_recall_k=type_recall_k,
+            **query_graph_metrics(registry, pred_source, pred_target, path),
+        )
 
         path_mark = "OK" if path_found else "MISS"
         tr_str = f"{type_recall_k:>5.2f}"

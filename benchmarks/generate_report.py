@@ -4,6 +4,22 @@ import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 
+DOMAIN_REGISTRIES = {}
+
+def _get_graph_metrics(domain: str) -> dict | None:
+    if domain in DOMAIN_REGISTRIES:
+        return DOMAIN_REGISTRIES[domain]
+    try:
+        import importlib
+        reg_mod = importlib.import_module(f"benchmarks.{domain}.registry")
+        reg = reg_mod.build_registry()
+        metrics = reg._graph.metrics()
+        metrics["tool_count"] = len(reg._tools)
+        DOMAIN_REGISTRIES[domain] = metrics
+        return metrics
+    except Exception:
+        return None
+
 STRATEGY_ORDER = [
     "baseline", "retrieval", "graph", "graph-narrowed",
     "graph-probs", "graph-reverse", "graph-reverse-probs", "constrained-reverse",
@@ -326,6 +342,331 @@ def render_recall_precision_vs_baseline(domain: str, model_results: dict) -> str
     </div>"""
 
 
+def render_per_query_table(strategies: list[dict], model: str) -> str:
+    strategies = order_strategies(strategies)
+    has_types = any("per_query" in s and s["per_query"] and "predicted_source" in s["per_query"][0]
+                     for s in strategies)
+    has_graph = any("per_query" in s and s["per_query"] and "path_length" in s["per_query"][0]
+                     for s in strategies)
+
+    sections = []
+    for s in strategies:
+        pq = s.get("per_query", [])
+        if not pq:
+            continue
+        key = s.get("strategy_key", s.get("strategy", "?"))
+
+        type_cols = ""
+        type_header = ""
+        graph_header = ""
+        if has_types and "predicted_source" in pq[0]:
+            type_header = "<th class='strategy'>Expected</th><th class='strategy'>Predicted</th>"
+        if has_graph and "path_length" in pq[0]:
+            graph_header = "<th class='strategy'>PathLen</th><th class='strategy'>SrcOut</th><th class='strategy'>SrcReach</th>"
+
+        rows = []
+        for q in pq:
+            f1_val = q.get("f1", -1)
+            if f1_val < 0:
+                f1_cls = "na"
+                f1_str = "&mdash;"
+            else:
+                f1_cls = "delta-pos" if f1_val >= 0.8 else ("delta-neg" if f1_val < 0.5 else "")
+                f1_str = f"{f1_val:.2f}"
+
+            rec_val = q.get("recall", -1)
+            rec_cls = "delta-pos" if rec_val >= 0.8 else ("delta-neg" if 0 <= rec_val < 0.5 else "")
+            rec_str = f"{rec_val:.2f}" if rec_val >= 0 else "&mdash;"
+
+            prec_val = q.get("precision", -1)
+            prec_str = f"{prec_val:.2f}" if prec_val >= 0 else "&mdash;"
+
+            expected_str = ", ".join(q.get("expected_tools", []))
+            resolved_str = ", ".join(q.get("resolved_tools", []))
+
+            type_cells = ""
+            if has_types and "predicted_source" in q:
+                exp_st = f"{q.get('expected_source','?')}→{q.get('expected_target','?')}"
+                pred_st = f"{q.get('predicted_source','?')}→{q.get('predicted_target','?')}"
+                match_cls = "delta-pos" if exp_st == pred_st else "delta-neg"
+                type_cells = f"<td class='val'>{exp_st}</td><td class='val {match_cls}'>{pred_st}</td>"
+
+            graph_cells = ""
+            if has_graph and "path_length" in q:
+                pl = q.get("path_length")
+                so = q.get("source_out_degree", 0)
+                sr = q.get("source_reachable", 0)
+                pl_str = str(pl) if pl is not None else "&mdash;"
+                graph_cells = f"<td class='val'>{pl_str}</td><td class='val'>{so}</td><td class='val'>{sr}</td>"
+
+            rows.append(f"""<tr>
+                <td class='label'>{q['id']}</td>
+                <td class='val'>{q.get('category','')}</td>
+                {type_cells}
+                <td class='val {rec_cls}'>{rec_str}</td>
+                <td class='val'>{prec_str}</td>
+                <td class='val {f1_cls}'>{f1_str}</td>
+                {graph_cells}
+                <td class='val' style='font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis'>{expected_str}</td>
+                <td class='val' style='font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis'>{resolved_str}</td>
+            </tr>""")
+
+        table_id = f"pq-{model}-{key}".replace(" ", "-")
+        sections.append(f"""
+        <div class="pq-strategy">
+          <div class="pq-toggle" onclick="var t=document.getElementById('{table_id}');t.style.display=t.style.display==='none'?'':'none'">
+            ▸ {key} ({len(pq)} queries)
+          </div>
+          <table id="{table_id}" style="display:none">
+            <tr>
+              <th>Query</th><th class="strategy">Cat</th>
+              {type_header}
+              <th class="strategy">Recall</th><th class="strategy">Prec</th><th class="strategy">F1</th>
+              {graph_header}
+              <th class="strategy">Expected Tools</th><th class="strategy">Resolved Tools</th>
+            </tr>
+            {"".join(rows)}
+          </table>
+        </div>""")
+
+    if not sections:
+        return ""
+
+    return f"""
+    <div class="card">
+      <h3>Per-Query Details</h3>
+      {"".join(sections)}
+    </div>"""
+
+
+def render_failure_analysis(domain: str, model_results: dict) -> str:
+    models = sorted(model_results.keys())
+    all_query_ids = set()
+    for model in models:
+        for s in model_results[model]["strategies"]:
+            for q in s.get("per_query", []):
+                all_query_ids.add(q["id"])
+
+    if not all_query_ids:
+        return ""
+
+    universal_failures = []
+    graph_regressions = []
+
+    for qid in sorted(all_query_ids):
+        all_fail = True
+        baseline_ok = False
+        graph_fail = False
+
+        for model in models:
+            for s in model_results[model]["strategies"]:
+                key = s.get("strategy_key", s.get("strategy", ""))
+                for q in s.get("per_query", []):
+                    if q["id"] != qid:
+                        continue
+                    rec = q.get("recall", -1)
+                    if rec > 0:
+                        all_fail = False
+                    if key == "baseline" and rec > 0:
+                        baseline_ok = True
+                    if key not in ("baseline", "retrieval") and rec <= 0:
+                        graph_fail = True
+
+        if all_fail:
+            universal_failures.append(qid)
+        if baseline_ok and graph_fail:
+            graph_regressions.append(qid)
+
+    if not universal_failures and not graph_regressions:
+        return ""
+
+    items = []
+    if universal_failures:
+        ids = ", ".join(universal_failures)
+        items.append(f"""
+        <div class="failure-group">
+          <h4>Universal Failures ({len(universal_failures)})</h4>
+          <p>These queries fail across all strategies and models — fundamental limitations:</p>
+          <div class="failure-ids">{ids}</div>
+        </div>""")
+
+    if graph_regressions:
+        ids = ", ".join(graph_regressions)
+        items.append(f"""
+        <div class="failure-group">
+          <h4>Graph Recall Regressions ({len(graph_regressions)})</h4>
+          <p>Baseline finds these but graph strategies miss them — type prediction errors:</p>
+          <div class="failure-ids">{ids}</div>
+        </div>""")
+
+    return f"""
+    <div class="card">
+      <h3>Failure Analysis</h3>
+      {"".join(items)}
+    </div>"""
+
+
+def render_graph_eda(domain: str, model_results: dict) -> str:
+    all_pq = []
+    for model in sorted(model_results.keys()):
+        for s in model_results[model]["strategies"]:
+            key = s.get("strategy_key", s.get("strategy", ""))
+            if key in ("baseline", "retrieval"):
+                continue
+            for q in s.get("per_query", []):
+                if "path_length" in q and q.get("f1", -1) >= 0:
+                    all_pq.append({**q, "model": model, "strategy": key})
+
+    if not all_pq:
+        return ""
+
+    from collections import defaultdict
+
+    by_path_len = defaultdict(list)
+    by_out_degree = defaultdict(list)
+    by_reachable = defaultdict(list)
+
+    for q in all_pq:
+        pl = q.get("path_length")
+        if pl is not None:
+            by_path_len[pl].append(q["f1"])
+
+        so = q.get("source_out_degree", 0)
+        if so <= 2:
+            bucket = "1-2"
+        elif so <= 5:
+            bucket = "3-5"
+        elif so <= 10:
+            bucket = "6-10"
+        else:
+            bucket = "11+"
+        by_out_degree[bucket].append(q["f1"])
+
+        sr = q.get("source_reachable", 0)
+        if sr <= 3:
+            rb = "1-3"
+        elif sr <= 10:
+            rb = "4-10"
+        elif sr <= 20:
+            rb = "11-20"
+        else:
+            rb = "21+"
+        by_reachable[rb].append(q["f1"])
+
+    def make_table(title, data, key_label, key_order=None):
+        keys = key_order or sorted(data.keys())
+        keys = [k for k in keys if k in data]
+        if not keys:
+            return ""
+        header = f"<tr><th>{key_label}</th><th class='strategy'>N</th><th class='strategy'>Avg F1</th><th class='strategy'>Avg Recall</th></tr>"
+        rows = []
+        for k in keys:
+            vals = data[k]
+            n = len(vals)
+            avg_f1 = sum(vals) / n
+            bg = f1_to_color(avg_f1)
+            rows.append(f"<tr><td class='label'>{k}</td><td class='val'>{n}</td>"
+                        f"<td class='val heat' style='background:{bg}'>{avg_f1:.2f}</td>"
+                        f"<td class='val'>&mdash;</td></tr>")
+        return f"<h4>{title}</h4><table>{header}{''.join(rows)}</table>"
+
+    by_reachable_recall = defaultdict(list)
+    for q in all_pq:
+        sr = q.get("source_reachable", 0)
+        if sr <= 3:
+            rb = "1-3"
+        elif sr <= 10:
+            rb = "4-10"
+        elif sr <= 20:
+            rb = "11-20"
+        else:
+            rb = "21+"
+        by_reachable_recall[rb].append(q.get("recall", 0))
+
+    sections = []
+    sections.append(make_table("F1 by Path Length", by_path_len, "Hops"))
+    sections.append(make_table("F1 by Source Out-Degree", by_out_degree, "Out-Degree",
+                               ["1-2", "3-5", "6-10", "11+"]))
+    sections.append(make_table("F1 by Source Reachable Types", by_reachable, "Reachable",
+                               ["1-3", "4-10", "11-20", "21+"]))
+
+    return f"""
+    <div class="card">
+      <h3>Graph Metrics vs Performance</h3>
+      <div class="eda-grid">{"".join(f'<div>{s}</div>' for s in sections if s)}</div>
+    </div>"""
+
+
+def render_graph_structure(domains: list[str]) -> str:
+    all_metrics = {}
+    for d in domains:
+        m = _get_graph_metrics(d)
+        if m:
+            all_metrics[d] = m
+    if not all_metrics:
+        return ""
+
+    header_cells = "".join(f"<th class='strategy'>{d}</th>" for d in domains if d in all_metrics)
+
+    rows_spec = [
+        ("Tools",                   lambda m: m.get("tool_count")),
+        ("Types (nodes)",           lambda m: m["structural"]["node_count"]),
+        ("Edges",                   lambda m: m["structural"]["edge_count"]),
+        ("Components",              lambda m: m["structural"]["connected_components"]),
+        ("Diameter",                lambda m: m["reachability"]["diameter"]),
+        ("Avg Path Length",         lambda m: m["reachability"]["avg_shortest_path_length"]),
+        ("Reachability",            lambda m: m["reachability"]["reachable_pairs_pct"]),
+        ("Avg Branching Factor",    lambda m: m["search_space"]["avg_branching_factor"]),
+        ("Max Branching Factor",    lambda m: m["search_space"]["max_branching_factor"]),
+        ("Avg In-Degree",           lambda m: m["structural"]["avg_in_degree"]),
+        ("Avg Out-Degree",          lambda m: m["structural"]["avg_out_degree"]),
+        ("Max In-Degree",           lambda m: m["structural"]["max_in_degree"]),
+        ("Max Out-Degree",          lambda m: m["structural"]["max_out_degree"]),
+        ("Avg Reachable Targets",   lambda m: m["reachability"]["avg_reachable_targets_per_source"]),
+        ("Avg Reachable Sources",   lambda m: m["reachability"]["avg_reachable_sources_per_target"]),
+    ]
+
+    rows = []
+    for label, getter in rows_spec:
+        cells = ""
+        for d in domains:
+            if d not in all_metrics:
+                continue
+            val = getter(all_metrics[d])
+            if isinstance(val, float):
+                cells += f"<td class='val'>{val:.2f}</td>"
+            else:
+                cells += f"<td class='val'>{val}</td>"
+        rows.append(f"<tr><td class='label'>{label}</td>{cells}</tr>")
+
+    betweenness_rows = []
+    for d in domains:
+        if d not in all_metrics:
+            continue
+        top = all_metrics[d]["centrality"]["top_betweenness"][:3]
+        items = ", ".join(f"{e['type']} ({e['score']:.0f})" for e in top)
+        betweenness_rows.append(f"<tr><td class='label'>{d}</td><td class='val' colspan='{len(all_metrics)-1}' style='text-align:left'>{items}</td></tr>")
+
+    betweenness_section = ""
+    if betweenness_rows:
+        betweenness_section = f"""
+        <h4 style="margin-top:16px; color:#9ca3af; font-size:12px;">Top Betweenness Centrality (hub types)</h4>
+        <table>
+          <tr><th>Domain</th><th style="text-align:left">Top Types</th></tr>
+          {"".join(betweenness_rows)}
+        </table>"""
+
+    return f"""
+    <div class="card">
+      <h3>Graph Structure by Domain</h3>
+      <table>
+        <tr><th>Metric</th>{header_cells}</tr>
+        {"".join(rows)}
+      </table>
+      {betweenness_section}
+    </div>"""
+
+
 def render_aggregate_table(data: dict) -> str:
     rows = []
     for domain in sorted(data.keys()):
@@ -346,21 +687,35 @@ def render_aggregate_table(data: dict) -> str:
             best_hall = best.get("hallucinated", 0)
             best_tok = best.get("avg_prompt_tokens", 0)
 
+            best_prec = best.get("precision", 0)
+            best_rec = best.get("recall", 0)
+            bl_prec = bl.get("precision", 0)
+            bl_rec = bl.get("recall", 0)
+
             f1_delta = best_f1 - bl_f1
+            prec_delta = best_prec - bl_prec
+            rec_delta = best_rec - bl_rec
             tok_save = (1 - best_tok / bl_tok) * 100 if bl_tok > 0 else 0
 
-            f1_cls = "delta-pos" if f1_delta >= 0 else "delta-neg"
-            f1_sign = "+" if f1_delta >= 0 else ""
+            def _delta_cls(d):
+                return "delta-pos" if d > 0.005 else ("delta-neg" if d < -0.005 else "")
+
+            def _delta_fmt(v, d):
+                sign = "+" if d > 0.005 else ""
+                cls = _delta_cls(d)
+                delta_span = f" <span class='delta'>({sign}{d:.2f})</span>" if abs(d) > 0.005 else ""
+                return f'<td class="val {cls}">{v:.2f}{delta_span}</td>'
+
             hall_cls = "delta-pos" if best_hall < bl_hall else ("" if best_hall == bl_hall else "delta-neg")
             tok_cls = "delta-pos" if tok_save > 0 else "delta-neg"
 
             rows.append(f"""<tr>
               <td class="label">{domain}</td>
               <td class="label">{model}</td>
-              <td class="val">{bl_f1:.2f}</td>
-              <td class="val best">{best_f1:.2f}</td>
-              <td class="val {f1_cls}">{f1_sign}{f1_delta:.2f}</td>
               <td class="val">{best_key}</td>
+              {_delta_fmt(best_prec, prec_delta)}
+              {_delta_fmt(best_rec, rec_delta)}
+              {_delta_fmt(best_f1, f1_delta)}
               <td class="val">{bl_hall}</td>
               <td class="val {hall_cls}">{best_hall}</td>
               <td class="val {tok_cls}">{tok_save:.0f}%</td>
@@ -376,10 +731,10 @@ def render_aggregate_table(data: dict) -> str:
         <table>
           <tr>
             <th>Domain</th><th>Model</th>
-            <th class="strategy">Baseline F1</th>
-            <th class="strategy">Best Graph F1</th>
-            <th class="strategy">&Delta; F1</th>
             <th class="strategy">Strategy</th>
+            <th class="strategy">Precision</th>
+            <th class="strategy">Recall</th>
+            <th class="strategy">F1</th>
             <th class="strategy">BL Hall.</th>
             <th class="strategy">Graph Hall.</th>
             <th class="strategy">Token Savings</th>
@@ -420,9 +775,12 @@ def generate_html(data: dict) -> str:
             content += render_metrics_table(strategies, CORE_METRICS, "Core Metrics")
             content += render_metrics_table(strategies, LATENCY_METRICS, "Latency &amp; Tokens")
             content += render_category_table(strategies)
+            content += render_per_query_table(strategies, model)
 
         content += render_cross_model_table(domain, model_results)
         content += render_recall_precision_vs_baseline(domain, model_results)
+        content += render_graph_eda(domain, model_results)
+        content += render_failure_analysis(domain, model_results)
 
         sections += f"""
         <div class="domain-section" id="domain-{domain}" style="{display}">
@@ -517,6 +875,50 @@ td.delta-neg {{
 .recall-model h4 {{
   font-size: 13px;
   color: #c0c0c0;
+  margin: 0 0 8px 0;
+}}
+.pq-toggle {{
+  cursor: pointer;
+  color: #6366f1;
+  font-size: 13px;
+  padding: 4px 0;
+  user-select: none;
+}}
+.pq-toggle:hover {{
+  color: #818cf8;
+}}
+.pq-strategy {{
+  margin-bottom: 8px;
+}}
+.failure-group {{
+  margin-bottom: 16px;
+}}
+.failure-group h4 {{
+  font-size: 13px;
+  color: #f87171;
+  margin: 0 0 4px 0;
+}}
+.failure-group p {{
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 0 0 8px 0;
+}}
+.failure-ids {{
+  font-size: 12px;
+  color: #e0e0e0;
+  background: #0f1117;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: monospace;
+}}
+.eda-grid {{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}}
+.eda-grid h4 {{
+  font-size: 12px;
+  color: #9ca3af;
   margin: 0 0 8px 0;
 }}
 h1 {{
@@ -624,6 +1026,7 @@ h3 {{
     <span>Domains: {', '.join(domains)}</span>
   </div>
   {render_aggregate_table(data)}
+  {render_graph_structure(domains)}
   <div class="tabs">{tabs}</div>
   {sections}
 </div>

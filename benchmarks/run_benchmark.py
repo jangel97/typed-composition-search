@@ -5,7 +5,7 @@ import time
 
 from benchmarks.llm import MODELS, get_llm_config, llm_completion
 from benchmarks.metrics import avg, format_metric, format_pruning, format_tools
-from benchmarks.report import BenchmarkReport
+from benchmarks.report import BenchmarkReport, query_graph_metrics
 
 
 SYSTEM_PROMPT = """You are a type predictor for a tool composition system.
@@ -112,6 +112,14 @@ def run_benchmark(model_name: str, domain: str):
         resolved_tools = {t.name for t in path.tools} if path else set()
         n_tools = len(path.tools) if path else 0
         precision, recall, f1 = report.record_tool_result(resolved_tools, expected_tools, n_tools, cat)
+        report.record_query(
+            q["id"], cat, expected_tools, resolved_tools,
+            precision, recall, f1, latency_ms, n_tools,
+            expected_source=q["source_type"], expected_target=q["target_type"],
+            predicted_source=pred_source, predicted_target=pred_target,
+            path_found=path_found,
+            **query_graph_metrics(registry, pred_source, pred_target, path),
+        )
 
         path_mark = "OK" if path_found else "MISS"
         prompt = q["query"][:82] + "..." if len(q["query"]) > 85 else q["query"]

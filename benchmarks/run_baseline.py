@@ -108,6 +108,13 @@ def run_baseline(model_name: str, domain: str):
         resolved_tools = predicted_set
         precision, recall, f1 = report.record_tool_result(resolved_tools, expected_tools, n_selected, cat)
 
+        report.record_query(
+            q["id"], cat, expected_tools, resolved_tools,
+            precision, recall, f1, latency_ms, n_selected,
+            predicted_tools=valid_predicted,
+            hallucinated_tools=hallucinated,
+        )
+
         if expected_tools:
             exact = 1 if predicted_set == expected_tools else 0
             tool_count_err = abs(len(valid_predicted) - len(expected_tools))

@@ -5,7 +5,7 @@ import time
 
 from benchmarks.llm import MODELS, get_llm_config, llm_completion
 from benchmarks.metrics import avg, build_type_list, match_type_name, format_metric, format_pruning, format_tools
-from benchmarks.report import BenchmarkReport
+from benchmarks.report import BenchmarkReport, query_graph_metrics
 
 
 Q1_PROMPT = """The user's query describes something they HAVE (the starting point) and something they WANT (the goal).
@@ -240,6 +240,16 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
         resolved_tools = {t.name for t in best_path.tools} if best_path else set()
         n_tools = len(best_path.tools) if best_path else 0
         precision, recall, f1 = report.record_tool_result(resolved_tools, expected_tools, n_tools, cat)
+        report.record_query(
+            q["id"], cat, expected_tools, resolved_tools,
+            precision, recall, f1, total_latency, n_tools,
+            expected_source=q["source_type"], expected_target=q["target_type"],
+            predicted_source=best_source, predicted_target=best_target,
+            path_found=path_found,
+            best_score=best_score if best_score > float("-inf") else None,
+            llm_calls=llm_calls,
+            **query_graph_metrics(registry, best_source, best_target, best_path),
+        )
 
         expected_st = f"{q['source_type']}→{q['target_type']}"
         predicted_st = f"{best_source}→{best_target}"

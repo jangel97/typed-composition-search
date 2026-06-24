@@ -3,6 +3,21 @@ from collections import defaultdict
 from benchmarks.metrics import avg, std, percentile, tool_set_metrics
 
 
+def query_graph_metrics(registry, pred_source: str, pred_target: str, path) -> dict:
+    graph = registry._graph
+    source_edges = graph._edges.get(pred_source, [])
+    target_edges = graph._reverse_edges.get(pred_target, [])
+    source_reachable = registry.reachable_types(pred_source)
+    target_reverse = registry.reverse_reachable_types(pred_target)
+    return {
+        "path_length": len(path.tools) if path else None,
+        "source_out_degree": len(source_edges),
+        "target_in_degree": len(target_edges),
+        "source_reachable": len(source_reachable),
+        "target_reverse_reachable": len(target_reverse),
+    }
+
+
 class BenchmarkReport:
 
     def __init__(self, total_tools: int, category_factory=None):
@@ -15,6 +30,7 @@ class BenchmarkReport:
         self.all_prompt_tokens: list[int] = []
         self.all_completion_tokens: list[int] = []
         self._n_queries = 0
+        self._per_query: list[dict] = []
 
         if category_factory:
             self.category_stats = defaultdict(category_factory)
@@ -45,6 +61,32 @@ class BenchmarkReport:
             precision, recall, f1 = -1.0, -1.0, -1.0
 
         return precision, recall, f1
+
+    def record_query(
+        self,
+        query_id: str,
+        category: str,
+        expected_tools: set[str],
+        resolved_tools: set[str],
+        precision: float,
+        recall: float,
+        f1: float,
+        latency_ms: float,
+        n_tools: int,
+        **extra,
+    ):
+        self._per_query.append({
+            "id": query_id,
+            "category": category,
+            "expected_tools": sorted(expected_tools),
+            "resolved_tools": sorted(resolved_tools),
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+            "latency_ms": round(latency_ms, 1),
+            "n_tools": n_tools,
+            **extra,
+        })
 
     def record_latency(self, latency_ms: float, prompt_tokens: int, completion_tokens: int):
         self.all_latency.append(latency_ms)
@@ -108,4 +150,5 @@ class BenchmarkReport:
             "avg_completion_tokens": avg(self.all_completion_tokens),
             "category_f1": cat_f1,
             "n": self._n_queries,
+            "per_query": self._per_query,
         }

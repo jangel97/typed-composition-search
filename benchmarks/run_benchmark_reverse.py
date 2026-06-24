@@ -4,7 +4,7 @@ import time
 
 from benchmarks.llm import get_llm_config, llm_completion
 from benchmarks.metrics import avg, std, build_type_list, match_type_name, format_metric, format_pruning, format_tools
-from benchmarks.report import BenchmarkReport
+from benchmarks.report import BenchmarkReport, query_graph_metrics
 
 
 Q1_TARGET_PROMPT = """Given the user query, which entity type does the user WANT TO OBTAIN or FIND?
@@ -173,6 +173,14 @@ def run_benchmark_reverse(model_name: str, domain: str):
         resolved_tools = {t.name for t in path.tools} if path else set()
         n_tools = len(path.tools) if path else 0
         precision, recall, f1 = report.record_tool_result(resolved_tools, expected_tools, n_tools, cat)
+        report.record_query(
+            q["id"], cat, expected_tools, resolved_tools,
+            precision, recall, f1, total_latency, n_tools,
+            expected_source=q["source_type"], expected_target=q["target_type"],
+            predicted_source=pred_source or "?", predicted_target=pred_target or "?",
+            path_found=path_found,
+            **query_graph_metrics(registry, pred_source or "?", pred_target or "?", path),
+        )
 
         expected_st = f"{q['source_type']}→{q['target_type']}"
         pred_st = f"{pred_source or '?'}→{pred_target or '?'}"

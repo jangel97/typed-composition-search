@@ -156,6 +156,13 @@ def run_retrieval(model_name: str, k: int, domain: str):
         n_selected = len(valid_predicted)
         precision, recall, f1 = report.record_tool_result(predicted_set, expected_tools, n_selected, cat)
 
+        report.record_query(
+            q["id"], cat, expected_tools, predicted_set,
+            precision, recall, f1, latency_ms, n_selected,
+            retrieval_recall=retrieval_recall,
+            hallucinated_tools=hallucinated,
+        )
+
         if expected_tools:
             exact = 1 if predicted_set == expected_tools else 0
             tool_count_err = abs(len(valid_predicted) - len(expected_tools))
