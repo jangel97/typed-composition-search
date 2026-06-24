@@ -1,0 +1,1 @@
+We decompose end-to-end tool routing accuracy into entity prediction accuracy and graph recoverability. This allows us to distinguish model failures from structural failures in the tool graph.

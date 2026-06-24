@@ -171,20 +171,49 @@ Current benchmarks entangle two independent failure modes: the LLM predicting th
 
 3. **End-to-End** — The current pipeline. Combines both components.
 
-### Key Equation
+### Recall Decomposition
 
-If type prediction and graph resolution are independent:
+The exact expression for end-to-end recall is:
 
 ```
-end_to_end_recall ≈ type_prediction_recall × graph_recall
+Recall_e2e = TypeAccuracy × Recall_oracle + (1 - TypeAccuracy) × Recall_wrong
 ```
+
+where:
+- `TypeAccuracy` = fraction of queries where both source and target types are predicted correctly
+- `Recall_oracle` = average recall when ground-truth types are given to the graph (oracle benchmark)
+- `Recall_wrong` = average recall when the predicted types are incorrect
+
+Our working approximation:
+
+```
+Recall_e2e ≈ TypeAccuracy × Recall_oracle
+```
+
+This assumes `Recall_wrong ≈ 0`: when the LLM predicts wrong types, the graph resolves a wrong path that returns wrong tools, contributing approximately zero recall. This should be verified empirically by measuring recall on the subset of queries where type prediction failed.
+
+### Why Only Recall Decomposes
+
+Precision does not decompose multiplicatively. When type prediction fails, two things can happen:
+
+1. **No path found** → no tools returned → precision is undefined, **excluded from the average**
+2. **Wrong path found** → wrong tools → precision ≈ 0, counted in average
+
+The exclusion changes the denominator. Queries that fail silently (no path) disappear from the precision average, inflating it. So `TypeAccuracy × Precision_oracle` underestimates actual precision.
+
+F1 inherits this problem since it is the harmonic mean of precision and recall.
+
+For the paper:
+- **Claim** the recall decomposition (with empirical validation of `Recall_wrong ≈ 0`)
+- **Report** oracle precision and F1 as reference metrics
+- **Do not claim** a decomposition for precision or F1
 
 ### Why It Matters
 
-- **Isolates where to invest**: if graph recall is 0.98 but type recall is 0.70, improving the graph won't help — you need a better type classifier.
-- **Clean claim for paper**: if graph recall ≈ 1.0 given perfect types, the graph is a lossless execution engine and all loss comes from the type prediction step.
-- **Validates the architecture**: proving the multiplicative relationship confirms that the two components are truly independent, which is a desirable property of the system design.
-- **Per-domain diagnostics**: a domain where graph recall is low (e.g. missing edges, ambiguous paths) needs graph restructuring; a domain where type recall is low needs better prompts or a finetuned classifier.
+- **Isolates where to invest**: if oracle recall is 0.98 but type accuracy is 0.70, improving the graph won't help — you need a better type classifier.
+- **Clean claim for paper**: if oracle recall ≈ 1.0, the graph is a lossless execution engine and all loss comes from the type prediction step.
+- **Separates concerns**: the decomposition separates the system into two independently measurable components (entity prediction and graph planning), explaining where errors come from instead of only reporting end-to-end numbers.
+- **Per-domain diagnostics**: a domain where oracle recall is low needs graph restructuring; a domain where type accuracy is low needs better prompts or a finetuned classifier.
 
 
 ## Core Thesis: Problem Transformation, Not Tool Improvement
@@ -206,13 +235,13 @@ The system has two distinct components with separate responsibilities:
 | **Semantic classification (LLM)** | Query → Source Type, Query → Target Type | Probabilistic, model-dependent |
 | **Graph planning (BFS)** | Source + Target → Tool Path | Deterministic, model-independent |
 
-Since `Recall_graph ≈ 100%` (BFS always finds valid paths when they exist):
+When oracle recall is high (graph finds the right tools given correct types):
 
 ```
-Recall_total ≈ Recall_types
+Recall_total ≈ TypeAccuracy × Recall_oracle
 ```
 
-The bottleneck is entity prediction, not graph resolution.
+The bottleneck is entity prediction, not graph resolution. However, oracle recall varies by domain (k8s: 0.97, github: 0.92, ansible: 0.75), so the graph is not always lossless — some domains need graph restructuring too.
 
 ### What the Graph Actually Provides
 

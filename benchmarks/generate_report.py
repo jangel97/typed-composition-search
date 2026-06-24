@@ -21,6 +21,7 @@ def _get_graph_metrics(domain: str) -> dict | None:
         return None
 
 STRATEGY_ORDER = [
+    "oracle-graph", "model-types",
     "baseline", "retrieval", "graph", "graph-narrowed",
     "graph-probs", "graph-reverse", "graph-reverse-probs", "constrained-reverse",
 ]
@@ -34,6 +35,9 @@ CORE_METRICS = [
     ("Pruning",         "pruning",              ".0%",  False),
     ("Avg Tools",       "avg_tools",            ".1f",  True),
     ("Path Found",      "path_found_pct",       ".0%",  False),
+    ("Source Acc",      "source_accuracy",      ".0%",  False),
+    ("Target Acc",      "target_accuracy",      ".0%",  False),
+    ("Type Exact",      "exact_match_accuracy", ".0%",  False),
     ("Type Recall@k",   "type_recall_at_k",     ".2f",  False),
     ("Retrieval R@k",   "retrieval_recall_at_k",".2f",  False),
 ]
@@ -276,6 +280,143 @@ def render_summary_card(strategies: list[dict]) -> str:
       <h3>Best Graph Strategy vs Baseline</h3>
       <div class="summary-subtitle">Winner: <strong>{best_key}</strong> (F1 = {best_f1:.2f})</div>
       <div class="summary-grid">{"".join(items)}</div>
+    </div>"""
+
+
+def render_decomposition_card(strategies: list[dict], model: str = "") -> str:
+    strategies = order_strategies(strategies)
+    by_key = {s.get("strategy_key", s.get("strategy", "")): s for s in strategies}
+
+    oracle = by_key.get("oracle-graph")
+    model_types = by_key.get("model-types")
+    graph = by_key.get("graph")
+
+    if not oracle or not model_types:
+        return ""
+
+    oracle_recall = oracle.get("recall")
+    oracle_path_pct = oracle.get("path_found_pct")
+    type_exact = model_types.get("exact_match_accuracy")
+    source_acc = model_types.get("source_accuracy")
+    target_acc = model_types.get("target_accuracy")
+
+    if oracle_recall is None or type_exact is None:
+        return ""
+
+    predicted_recall = type_exact * oracle_recall
+
+    e2e_recall = graph.get("recall") if graph else None
+
+    recall_wrong = None
+    n_wrong = 0
+    if graph:
+        pq = graph.get("per_query", [])
+        wrong_recalls = []
+        for q in pq:
+            ps = q.get("predicted_source", "?")
+            pt = q.get("predicted_target", "?")
+            es = q.get("expected_source", "?")
+            et = q.get("expected_target", "?")
+            if ps != es or pt != et:
+                rec = q.get("recall", -1)
+                if rec >= 0:
+                    wrong_recalls.append(rec)
+        if wrong_recalls:
+            recall_wrong = sum(wrong_recalls) / len(wrong_recalls)
+            n_wrong = len(wrong_recalls)
+
+    predicted_recall_full = None
+    if recall_wrong is not None:
+        predicted_recall_full = type_exact * oracle_recall + (1 - type_exact) * recall_wrong
+
+    type_item = f"""
+      <div class="summary-item" style="grid-column: 1 / -1; max-width: 240px;">
+        <div class="summary-value" style="color:#6366f1">{type_exact:.0%}</div>
+        <div class="summary-label">Type Exact Match</div>
+        <div class="summary-detail">src={source_acc:.0%} &nbsp; tgt={target_acc:.0%} &nbsp; path found={oracle_path_pct:.0%}</div>
+      </div>"""
+
+    recall_eq = f"Recall_e2e = TypeAccuracy &times; Recall_oracle + (1 - TypeAccuracy) &times; Recall_wrong"
+    recall_cells = []
+
+    oracle_cls = "pos" if oracle_recall >= 0.95 else ("neg" if oracle_recall < 0.8 else "")
+    recall_cells.append(f"""
+      <div class="summary-item">
+        <div class="summary-value {oracle_cls}">{oracle_recall:.2f}</div>
+        <div class="summary-label">Oracle Recall</div>
+      </div>""")
+
+    if recall_wrong is not None:
+        rw_cls = "pos" if recall_wrong < 0.05 else "neg"
+        recall_cells.append(f"""
+      <div class="summary-item">
+        <div class="summary-value {rw_cls}">{recall_wrong:.2f}</div>
+        <div class="summary-label">Recall_wrong</div>
+        <div class="summary-detail">n={n_wrong} queries</div>
+      </div>""")
+
+    if predicted_recall_full is not None:
+        recall_cells.append(f"""
+      <div class="summary-item">
+        <div class="summary-value" style="color:#f59e0b">{predicted_recall_full:.2f}</div>
+        <div class="summary-label">Predicted Recall</div>
+        <div class="summary-detail">full equation</div>
+      </div>""")
+    else:
+        recall_cells.append(f"""
+      <div class="summary-item">
+        <div class="summary-value" style="color:#f59e0b">{predicted_recall:.2f}</div>
+        <div class="summary-label">Predicted Recall</div>
+        <div class="summary-detail">assumes Recall_wrong&asymp;0</div>
+      </div>""")
+
+    if e2e_recall is not None:
+        predicted = predicted_recall_full if predicted_recall_full is not None else predicted_recall
+        gap = e2e_recall - predicted
+        gap_cls = "pos" if abs(gap) < 0.05 else "neg"
+        recall_cells.append(f"""
+      <div class="summary-item">
+        <div class="summary-value {gap_cls}">{e2e_recall:.2f}</div>
+        <div class="summary-label">Actual E2E Recall</div>
+        <div class="summary-detail">gap: {gap:+.2f}</div>
+      </div>""")
+
+    explanation = """
+      <div style="font-size:12px; color:#9ca3af; line-height:1.6; margin-bottom:16px; padding:12px; background:#0f1117; border-radius:6px;">
+        <p style="margin:0 0 8px 0;">
+          The system has two stages: <strong style="color:#e0e0e0;">entity classification</strong> (LLM predicts source &amp; target types)
+          and <strong style="color:#e0e0e0;">graph planning</strong> (BFS finds a tool path).
+          Since wrong types almost always produce wrong tools (Recall_wrong &asymp; 0):
+        </p>
+        <p style="margin:0 0 12px 0; font-family:monospace; font-size:14px; color:#f59e0b;">
+          Recall_e2e &asymp; TypeAccuracy &times; Recall_oracle
+        </p>
+        <p style="margin:0 0 4px 0;">
+          <strong style="color:#e0e0e0;">Recall_oracle</strong> &mdash; recall when ground-truth types are given (graph quality, no LLM).
+        </p>
+        <p style="margin:0 0 4px 0;">
+          <strong style="color:#e0e0e0;">Recall_wrong</strong> &mdash; recall when types were predicted incorrectly. Validates the &asymp; 0 assumption.
+        </p>
+        <p style="margin:0 0 4px 0;">
+          <strong style="color:#e0e0e0;">Gap</strong> &mdash; difference between predicted and actual. Small gap = decomposition holds.
+        </p>
+        <p style="margin:8px 0 0 0;">
+          <em>Precision and F1 do not decompose this way &mdash; when no path is found, the query is excluded
+          from precision (changes the denominator). Oracle values shown as reference only.</em>
+        </p>
+      </div>"""
+
+    return f"""
+    <div class="card" style="border-left: 3px solid #f59e0b;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="margin-bottom:0;">Recall Decomposition</h3>
+        <span style="font-size:12px; color:#6366f1; font-weight:600;">{model}</span>
+      </div>
+      {explanation}
+      <div style="text-align:center; margin-bottom:16px;">{type_item}</div>
+      <div style="margin-bottom:16px;">
+        <div class="summary-grid">{"".join(recall_cells)}</div>
+      </div>
     </div>"""
 
 
@@ -772,6 +913,7 @@ def generate_html(data: dict) -> str:
               <span>Run: {meta.get('timestamp', '?')[:19]}</span>
             </div>"""
             content += render_summary_card(strategies)
+            content += render_decomposition_card(strategies, model)
             content += render_metrics_table(strategies, CORE_METRICS, "Core Metrics")
             content += render_metrics_table(strategies, LATENCY_METRICS, "Latency &amp; Tokens")
             content += render_category_table(strategies)

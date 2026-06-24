@@ -12,8 +12,12 @@ from benchmarks.run_benchmark_probs import run_benchmark_probs
 from benchmarks.run_benchmark_reverse import run_benchmark_reverse
 from benchmarks.run_benchmark_reverse_probs import run_benchmark_reverse_probs
 from benchmarks.run_benchmark_constrained import run_benchmark_constrained
+from benchmarks.run_oracle_graph import run_oracle_graph
+from benchmarks.run_model_types import run_model_types
 
 STRATEGIES = [
+    ("oracle-graph",        lambda m, d, p: run_oracle_graph(d)),
+    ("model-types",         lambda m, d, p: run_model_types(m, d)),
     ("baseline",            lambda m, d, p: run_baseline(m, d)),
     ("retrieval",           lambda m, d, p: run_retrieval(m, p["top_k"], d)),
     ("graph",               lambda m, d, p: run_benchmark(m, d)),
