@@ -276,3 +276,42 @@ Because once the types are correct, the rest is classical graph search.
 ### Implication for Model Choice
 
 If entity classification is the only bottleneck, the LLM can be replaced by a specialized classifier trained on the domain. Going from 90% to 98% type accuracy with a finetuned encoder would lift the entire system without touching the graph. This makes the architecture modular: improve the classifier, improve the system.
+
+
+## Domain Familiarity Effect
+
+### Observation
+
+Benchmark results reveal that type prediction accuracy depends on how well entity types are represented in the LLM's training data.
+
+```text
+Graph F1 (best model per domain)
+
+k8s       0.95   — entity types widely documented
+cicd      0.84   — mixed (some generic, some domain-specific)
+github    0.75   — entity types well-known
+ansible   0.63   — entity types niche, terminology ambiguous
+```
+
+Domains with well-known types (Kubernetes: `Pod`, `Deployment`, `Namespace`) achieve significantly higher F1 than domains with niche types (Ansible: `Playbook`, `Role`, `Inventory`). When entity types fall outside the model's training distribution, type prediction becomes the bottleneck — not the graph structure.
+
+The Ansible oracle-graph achieves 0.77 F1, confirming the graph itself is sound. The gap between oracle (0.77) and best LLM prediction (0.63) represents headroom lost to poor type classification.
+
+### Workaround: Finetuned Encoder for Type Prediction
+
+Since TCS decouples type prediction from tool execution, the type predictor can be replaced with any classifier. For niche domains, a small finetuned encoder trained on (query, source_type, target_type) examples can replace the LLM for the routing step.
+
+```text
+Default:   Query → LLM (type prediction) → Graph → LLM (execution)
+Encoder:   Query → Encoder (type prediction) → Graph → LLM (execution)
+```
+
+Type prediction is fundamentally a classification task over a fixed label set — not a generation task. Encoders are purpose-built for this.
+
+Expected benefits:
+
+* Higher type accuracy on niche domains compared to zero-shot LLM prediction.
+* Faster and cheaper routing (encoder forward pass vs LLM call).
+* Ability to improve routing independently by retraining the encoder.
+
+The Ansible domain is the evaluation target for this approach.

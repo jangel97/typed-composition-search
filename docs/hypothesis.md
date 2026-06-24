@@ -181,58 +181,6 @@ Any observed performance differences are attributable to chance.
 
 ---
 
-# Domain Familiarity Hypothesis (H5)
-
-Type prediction accuracy is strongly influenced by how well the entity types are represented in the language model's training data.
-
-Benchmark results show a clear pattern: domains with well-known entity types (Kubernetes: `Pod`, `Deployment`, `Namespace`) achieve significantly higher F1 than domains with niche types (Ansible: `Playbook`, `Role`, `Inventory`).
-
-```text
-Graph F1 (best model per domain)
-
-k8s       0.95   — entity types widely documented
-github    0.75   — entity types well-known
-cicd      0.84   — mixed (some generic, some domain-specific)
-ansible   0.63   — entity types niche, terminology ambiguous
-```
-
-This suggests that general-purpose LLMs are not equally suited for type prediction across all domains. When entity types fall outside the model's training distribution, type prediction becomes the bottleneck — not the graph structure.
-
----
-
-# Encoder Hypothesis (H6)
-
-For niche domains, a finetuned encoder can outperform general-purpose LLMs at entity type prediction.
-
-Since TCS decouples type prediction from tool execution, the type predictor can be replaced with any classifier — it does not need to be a large language model. A small finetuned encoder trained on domain-specific (query, source_type, target_type) examples should achieve higher accuracy than zero-shot LLM prediction on underrepresented domains.
-
-```text
-Current architecture
-
-Query → LLM (type prediction) → Graph → Tool chain → LLM (execution)
-```
-
-```text
-Proposed architecture
-
-Query → Encoder (type prediction) → Graph → Tool chain → LLM (execution)
-```
-
-Expected observations:
-
-* Higher type prediction accuracy on niche domains (Ansible) compared to zero-shot LLM prediction.
-* Faster inference for the routing step (encoder forward pass vs LLM generation).
-* Lower cost per query (small encoder vs LLM call for type prediction).
-* Ability to improve routing accuracy independently by retraining the encoder without changing the LLM.
-
-This hypothesis is motivated by the observation that type prediction is fundamentally a classification task — not a generation task. A query maps to a (source_type, target_type) pair from a fixed label set. Encoders are purpose-built for this.
-
-The Ansible domain is the primary evaluation target because it shows the largest gap between oracle-graph performance (0.77 F1) and actual LLM-based type prediction (0.54-0.63 F1). This gap represents the headroom available for a better type predictor.
-
-If confirmed, this hypothesis implies that TCS can be deployed effectively in any domain — well-known or niche — by pairing graph search with the appropriate type predictor for each domain.
-
----
-
 # Expected Contributions
 
 1. A reformulation of tool routing as an entity-classification problem.
@@ -240,9 +188,7 @@ If confirmed, this hypothesis implies that TCS can be deployed effectively in an
 3. Empirical evidence that entity-level abstractions simplify tool routing.
 4. A study of how graph topology influences routing quality.
 5. A scalability analysis across large tool ecosystems.
-6. Evidence that domain familiarity affects type prediction accuracy across domains.
-7. A finetuned encoder approach for type prediction in niche domains.
-8. Design principles for future tool-using agents.
+6. Design principles for future tool-using agents.
 
 ---
 
