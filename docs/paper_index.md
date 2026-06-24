@@ -65,7 +65,7 @@ Tool Composition
 * Entity-first routing framework
 * Multi-domain, multi-model benchmark evaluation
 * Decomposition analysis of routing performance
-* Empirical evidence that structural constraints eliminate hallucinations
+* Empirical evidence that structural constraints reduce hallucinations
 
 
 
@@ -270,37 +270,37 @@ Each query contains:
 * Expected target type
 * Expected tool chain
 
-## 6.4 Baselines
+## 6.4 Routing Strategies
 
-### Direct Tool Selection
+Six strategies, each earning its place in the analysis:
 
-All tools provided to the LLM.
+### Baseline (Direct Tool Selection)
+
+All tools provided to the LLM. Establishes the performance floor and hallucination rate of unconstrained selection.
 
 ### Retrieval
 
-Embedding similarity.
+Embedding similarity between query and tool descriptions. Represents the standard RAG approach to tool routing.
 
-### Graph Routing
+### Graph-Forward
 
-Entity prediction followed by graph search.
+Predict source type → reachable types → predict target type → BFS path resolution. Demonstrates the core reformulation (H1) and structural constraint effect (H2).
 
-## 6.5 Routing Strategies
+### Graph-Reverse-Probs
 
-### Graph
+Predict target type (n completions) → reverse BFS → predict source type (n completions) → probability scoring → forward BFS. Best-performing strategy; demonstrates the effect of planning direction (Section 8.3).
 
-Single-shot type prediction.
+### Oracle-Graph
 
-### Graph-Reverse
+Ground-truth source and target types provided; only graph resolution is evaluated. Isolates graph reachability from type prediction to support the decomposition analysis (H4).
 
-Reverse BFS.
+### Model-Types
 
-### Graph-Probs
+Evaluates type prediction accuracy in isolation (no graph resolution). Complements Oracle-Graph to complete the decomposition: end-to-end performance ≈ type prediction × graph reachability.
 
-Probabilistic type selection.
+### Exploratory Variants (Appendix)
 
-### Constrained-Reverse
-
-Graph-constrained decoding.
+Graph-Narrowed (embedding pre-filtering), Graph-Probs (forward with probability scoring), Graph-Reverse (reverse without probabilities), and Constrained-Reverse (structured decoding) were evaluated but are reported in the appendix as they do not contribute additional analytical insight beyond the six core strategies.
 
 
 
@@ -323,43 +323,37 @@ This is the central analytical result: routing performance is interpretable and 
 
 ## 7.2 End-to-End Routing Performance
 
-Metrics:
+Compare baseline, retrieval, graph-forward, and graph-reverse-probs across all model/domain combinations.
 
-* Precision
-* Recall
-* F1
-* Exact Match
+Metrics: Precision, Recall, F1, Exact Match.
 
-Best graph strategy outperforms baseline in all model/domain combinations.
+Graph-reverse-probs outperforms baseline in all 9+ model/domain combinations. Graph-forward vs graph-reverse-probs contrast shows the effect of planning direction.
 
 ## 7.3 Hallucination Reduction
 
-Baseline strategies produce hallucinated tools across models (up to 8 per run).
+Baseline produces hallucinated tools across models (up to 8 per run).
 
-In our experiments, all graph-constrained strategies produced zero hallucinations across all model/domain combinations.
+In our experiments, all graph-constrained strategies (graph-forward and graph-reverse-probs) produced zero hallucinations across all model/domain combinations.
 
 ## 7.4 Context Efficiency
 
 Graph routing uses 70–90% fewer prompt tokens than baseline by presenting only path-relevant tools instead of the full catalog.
 
-## 7.5 Type Prediction Performance
+## 7.5 Type Prediction Performance (Model-Types)
 
-Metrics:
+Evaluate type prediction accuracy in isolation using the model-types strategy.
 
-* Accuracy
-* Recall@K
-* Confusion Matrix
+Metrics: Source accuracy, Target accuracy, Exact match (both correct).
 
-## 7.6 Graph Oracle Performance
+This isolates the "entity classification" component of the decomposition.
 
-Ground-truth types provided.
+## 7.6 Graph Oracle Performance (Oracle-Graph)
 
-Measures:
+Ground-truth types provided; evaluate graph resolution in isolation.
 
-* Path found rate
-* Tool precision
-* Tool recall
-* Tool F1
+Metrics: Path found rate, Tool precision, Tool recall, Tool F1.
+
+This isolates the "graph reachability" component of the decomposition.
 
 ## 7.7 Entity Types vs Tools
 
@@ -389,9 +383,9 @@ Baseline F1 variance vs graph F1 variance per domain.
 
 ## 8.3 Planning Direction
 
-Analyze how planning direction (forward vs reverse) affects routing performance across domains.
+Compare graph-forward (source-first) vs graph-reverse-probs (target-first) to analyze how planning direction affects routing performance across domains.
 
-Compare source-first and target-first type prediction accuracy to understand when each direction is more effective.
+Source-first vs target-first type prediction accuracy, and when each direction is more effective.
 
 
 

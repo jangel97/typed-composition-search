@@ -1,0 +1,32 @@
+{% if aggregate_rows %}
+<div class="aggregate-section">
+  <div class="card">
+    <h3>All Results: Graph vs Baseline</h3>
+    <table>
+      <tr>
+        <th>Domain</th><th>Model</th>
+        <th class="strategy">Strategy</th>
+        <th class="strategy">Precision</th>
+        <th class="strategy">Recall</th>
+        <th class="strategy">F1</th>
+        <th class="strategy">BL Hall.</th>
+        <th class="strategy">Graph Hall.</th>
+        <th class="strategy">Token Savings</th>
+      </tr>
+      {% for row in aggregate_rows %}
+      <tr data-model="{{ row.model }}">
+        <td class="label">{{ row.domain }}</td>
+        <td class="label">{{ row.model }}</td>
+        <td class="val">{{ row.best_key }}</td>
+        <td class="val {{ row.prec_delta|delta_cls }}">{{ "%.2f"|format(row.best_prec) }}{% if row.prec_delta|abs > 0.005 %} <span class="delta">({{ row.prec_delta|delta_sign }}{{ "%.2f"|format(row.prec_delta) }})</span>{% endif %}</td>
+        <td class="val {{ row.rec_delta|delta_cls }}">{{ "%.2f"|format(row.best_rec) }}{% if row.rec_delta|abs > 0.005 %} <span class="delta">({{ row.rec_delta|delta_sign }}{{ "%.2f"|format(row.rec_delta) }})</span>{% endif %}</td>
+        <td class="val {{ row.f1_delta|delta_cls }}">{{ "%.2f"|format(row.best_f1) }}{% if row.f1_delta|abs > 0.005 %} <span class="delta">({{ row.f1_delta|delta_sign }}{{ "%.2f"|format(row.f1_delta) }})</span>{% endif %}</td>
+        <td class="val">{{ row.bl_hall }}</td>
+        <td class="val {{ 'delta-pos' if row.best_hall < row.bl_hall else ('delta-neg' if row.best_hall > row.bl_hall else '') }}">{{ row.best_hall }}</td>
+        <td class="val {{ 'delta-pos' if row.tok_save_pct > 0 else 'delta-neg' }}">{{ "%.0f"|format(row.tok_save_pct) }}%</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}

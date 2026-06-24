@@ -191,6 +191,19 @@ def llm_completion(config: dict, messages: list[dict], temperature: float = 0, *
     )
 
 
+_embed_cache: dict[tuple, list[list[float]]] = {}
+
+
+def embed_texts(client, texts: list[str], model: str) -> list[list[float]]:
+    key = (tuple(texts), model)
+    if key in _embed_cache:
+        return _embed_cache[key]
+    result = client.embeddings.create(model=model, input=texts).data
+    vecs = [d.embedding for d in result]
+    _embed_cache[key] = vecs
+    return vecs
+
+
 def get_embed_client() -> tuple[OpenAI, str]:
     embed_key = os.environ.get(EMBED_CONFIG["env_key"])
     if not embed_key:

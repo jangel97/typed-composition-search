@@ -5,6 +5,7 @@ import time
 
 from benchmarks.llm import get_llm_config, llm_completion
 from benchmarks.metrics import avg, std, build_type_list, match_type_name, format_metric, format_pruning, format_tools
+from benchmarks.parallel import run_queries_parallel
 from benchmarks.run_benchmark_probs import parse_completions, filter_candidates, DEFAULT_THRESHOLD, DEFAULT_MAX_CANDIDATES
 from benchmarks.report import BenchmarkReport, query_graph_metrics
 
@@ -125,16 +126,12 @@ def run_benchmark_reverse_probs(
     path_found_count = 0
     all_llm_calls = []
 
-    for q in queries:
-        cat = q.get("category", "clean")
-        stats = report.category_stats[cat]
-
+    def process_query(q):
         total_latency = 0.0
         total_prompt = 0
         total_completion = 0
         llm_calls = 0
 
-        # Q1: predict target with n completions + logprobs
         target_candidates, lat, ptok, ctok = predict_target_probs(
             config, q["query"], entity_types, type_names, n_completions,
         )
@@ -145,13 +142,8 @@ def run_benchmark_reverse_probs(
 
         target_candidates = filter_candidates(target_candidates, threshold, max_candidates)
         n_tgt = len(target_candidates)
-
         tgt_in = any(name == q["target_type"] for name, _ in target_candidates)
-        if tgt_in:
-            target_in_topn += 1
-            stats["target_in_topn"] += 1
 
-        # Q2: for each target candidate, reverse BFS → predict source
         best_path = None
         best_score = float("-inf")
         best_source = "?"
@@ -164,7 +156,6 @@ def run_benchmark_reverse_probs(
             source_names = sorted(reverse_sources & set(entity_types.keys()))
             if not source_names:
                 continue
-
             source_candidates, lat, ptok, ctok = predict_source_probs(
                 config, q["query"], tgt_name, entity_types.get(tgt_name, ""),
                 source_names, entity_types, n_completions,
@@ -173,12 +164,9 @@ def run_benchmark_reverse_probs(
             total_prompt += ptok
             total_completion += ctok
             llm_calls += 1
-
             source_candidates = filter_candidates(source_candidates, threshold, max_candidates)
-
             if any(name == q["source_type"] for name, _ in source_candidates):
                 src_found = True
-
             for src_name, src_prob in source_candidates:
                 score = math.log(tgt_prob) + math.log(src_prob)
                 if score > best_score:
@@ -190,11 +178,33 @@ def run_benchmark_reverse_probs(
                         best_target = tgt_name
                         best_n_src = len(source_candidates)
 
-        if src_found:
+        return {
+            "q": q, "tgt_in": tgt_in, "src_found": src_found, "n_tgt": n_tgt,
+            "best_path": best_path, "best_score": best_score,
+            "best_source": best_source, "best_target": best_target, "best_n_src": best_n_src,
+            "llm_calls": llm_calls,
+            "latency_ms": total_latency, "prompt_tok": total_prompt, "completion_tok": total_completion,
+        }
+
+    results = run_queries_parallel(queries, process_query)
+
+    for r in results:
+        q = r["q"]
+        best_path, best_score = r["best_path"], r["best_score"]
+        best_source, best_target = r["best_source"], r["best_target"]
+        total_latency, llm_calls = r["latency_ms"], r["llm_calls"]
+
+        cat = q.get("category", "clean")
+        stats = report.category_stats[cat]
+
+        if r["tgt_in"]:
+            target_in_topn += 1
+            stats["target_in_topn"] += 1
+        if r["src_found"]:
             source_in_topn += 1
             stats["source_in_topn"] += 1
 
-        report.record_latency(total_latency, total_prompt, total_completion)
+        report.record_latency(total_latency, r["prompt_tok"], r["completion_tok"])
         all_llm_calls.append(llm_calls)
 
         path_found = best_path is not None
@@ -224,7 +234,7 @@ def run_benchmark_reverse_probs(
 
         print(
             f"{q['id']:<30} {cat:<10} {expected_st:<25} {predicted_st:<25} "
-            f"{score_str} {n_tgt:>4} {best_n_src:>4} {path_mark:>4} "
+            f"{score_str} {r['n_tgt']:>4} {r['best_n_src']:>4} {path_mark:>4} "
             f"{format_tools(n_tools)} {format_pruning(n_tools, total_tools)} "
             f"{format_metric(precision)} {format_metric(recall)} {format_metric(f1)} "
             f"{llm_calls:>5} {total_latency:>7.0f}"

@@ -1,5 +1,6 @@
 import argparse
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -7,11 +8,7 @@ from benchmarks.llm import MODELS, get_llm_config
 from benchmarks.run_benchmark import run_benchmark
 from benchmarks.run_baseline import run_baseline
 from benchmarks.run_retrieval import run_retrieval
-from benchmarks.run_benchmark_narrowed import run_benchmark_narrowed
-from benchmarks.run_benchmark_probs import run_benchmark_probs
-from benchmarks.run_benchmark_reverse import run_benchmark_reverse
 from benchmarks.run_benchmark_reverse_probs import run_benchmark_reverse_probs
-from benchmarks.run_benchmark_constrained import run_benchmark_constrained
 from benchmarks.run_oracle_graph import run_oracle_graph
 from benchmarks.run_model_types import run_model_types
 
@@ -21,11 +18,7 @@ STRATEGIES = [
     ("baseline",            lambda m, d, p: run_baseline(m, d)),
     ("retrieval",           lambda m, d, p: run_retrieval(m, p["top_k"], d)),
     ("graph",               lambda m, d, p: run_benchmark(m, d)),
-    ("graph-narrowed",      lambda m, d, p: run_benchmark_narrowed(m, d, p["narrow_k"])),
-    ("graph-probs",         lambda m, d, p: run_benchmark_probs(m, d, p["threshold"], p["max_candidates"])),
-    ("graph-reverse",       lambda m, d, p: run_benchmark_reverse(m, d)),
     ("graph-reverse-probs", lambda m, d, p: run_benchmark_reverse_probs(m, d, p["n_completions"], p["threshold"], p["max_candidates"])),
-    ("constrained-reverse", lambda m, d, p: run_benchmark_constrained(m, d, p["n_completions"], p["threshold"], p["max_candidates"])),
 ]
 
 
@@ -35,6 +28,7 @@ def run_all(
     output_dir: Path,
     params: dict,
     force: bool = False,
+    parallel: int = 1,
 ):
     output_dir.mkdir(parents=True, exist_ok=True)
     saved = []
@@ -60,16 +54,34 @@ def run_all(
             print(f"{'=' * 80}")
 
             strategy_results = []
-            for key, runner in STRATEGIES:
-                print(f"\n{'─' * 60}")
-                print(f"  Strategy: {key}")
-                print(f"{'─' * 60}")
-                try:
-                    result = runner(model_name, domain, params)
-                    result["strategy_key"] = key
-                    strategy_results.append(result)
-                except Exception as e:
-                    print(f"  ERROR: {key} failed: {e}")
+            if parallel <= 1:
+                for key, runner in STRATEGIES:
+                    print(f"\n{'─' * 60}")
+                    print(f"  Strategy: {key}")
+                    print(f"{'─' * 60}")
+                    try:
+                        result = runner(model_name, domain, params)
+                        result["strategy_key"] = key
+                        strategy_results.append(result)
+                    except Exception as e:
+                        print(f"  ERROR: {key} failed: {e}")
+            else:
+                print(f"\n  Running {len(STRATEGIES)} strategies with parallelism={parallel}")
+                with ThreadPoolExecutor(max_workers=parallel) as pool:
+                    futures = {}
+                    for key, runner in STRATEGIES:
+                        futures[pool.submit(runner, model_name, domain, params)] = key
+                    for future in as_completed(futures):
+                        key = futures[future]
+                        try:
+                            result = future.result()
+                            result["strategy_key"] = key
+                            strategy_results.append(result)
+                            print(f"  Completed: {key}")
+                        except Exception as e:
+                            print(f"  ERROR: {key} failed: {e}")
+                order = {k: i for i, (k, _) in enumerate(STRATEGIES)}
+                strategy_results.sort(key=lambda r: order.get(r["strategy_key"], 999))
 
             ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
             out_file = output_dir / f"{model_name}_{domain}_{ts}.json"
@@ -105,6 +117,8 @@ def main():
     parser.add_argument("--threshold", type=float, default=0.15)
     parser.add_argument("--max-candidates", type=int, default=5)
     parser.add_argument("--n-completions", type=int, default=5)
+    parser.add_argument("--parallel", type=int, default=1,
+                        help="Number of strategies to run in parallel (default: 1)")
     args = parser.parse_args()
 
     params = {
@@ -115,7 +129,7 @@ def main():
         "n_completions": args.n_completions,
     }
 
-    saved = run_all(args.models, args.domains, args.output_dir, params, args.force)
+    saved = run_all(args.models, args.domains, args.output_dir, params, args.force, args.parallel)
     print(f"\n{'=' * 80}")
     print(f"  Done. {len(saved)} result file(s):")
     for p in saved:

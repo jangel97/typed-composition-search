@@ -239,7 +239,8 @@ def render_summary_card(strategies: list[dict]) -> str:
     bl_hall = bl.get("hallucinated", 0)
     bl_tok = bl.get("avg_prompt_tokens", 0)
 
-    graph_strats = [(k, s) for k, s in by_key.items() if k != "baseline" and k != "retrieval"]
+    _exclude = {"baseline", "retrieval", "oracle-graph", "model-types"}
+    graph_strats = [(k, s) for k, s in by_key.items() if k not in _exclude]
     if not graph_strats:
         return ""
 
@@ -610,7 +611,7 @@ def render_failure_analysis(domain: str, model_results: dict) -> str:
                         all_fail = False
                     if key == "baseline" and rec > 0:
                         baseline_ok = True
-                    if key not in ("baseline", "retrieval") and rec <= 0:
+                    if key not in ("baseline", "retrieval", "oracle-graph", "model-types") and rec <= 0:
                         graph_fail = True
 
         if all_fail:
@@ -652,7 +653,7 @@ def render_graph_eda(domain: str, model_results: dict) -> str:
     for model in sorted(model_results.keys()):
         for s in model_results[model]["strategies"]:
             key = s.get("strategy_key", s.get("strategy", ""))
-            if key in ("baseline", "retrieval"):
+            if key in ("baseline", "retrieval", "oracle-graph", "model-types"):
                 continue
             for q in s.get("per_query", []):
                 if "path_length" in q and q.get("f1", -1) >= 0:
@@ -820,7 +821,7 @@ def render_aggregate_table(data: dict) -> str:
             bl_hall = bl.get("hallucinated", 0)
             bl_tok = bl.get("avg_prompt_tokens", 0)
 
-            graph_strats = [(k, s) for k, s in by_key.items() if k not in ("baseline", "retrieval")]
+            graph_strats = [(k, s) for k, s in by_key.items() if k not in ("baseline", "retrieval", "oracle-graph", "model-types")]
             if not graph_strats:
                 continue
             best_key, best = max(graph_strats, key=lambda x: x[1].get("f1", 0))
@@ -850,7 +851,7 @@ def render_aggregate_table(data: dict) -> str:
             hall_cls = "delta-pos" if best_hall < bl_hall else ("" if best_hall == bl_hall else "delta-neg")
             tok_cls = "delta-pos" if tok_save > 0 else "delta-neg"
 
-            rows.append(f"""<tr>
+            rows.append(f"""<tr data-model="{model}">
               <td class="label">{domain}</td>
               <td class="label">{model}</td>
               <td class="val">{best_key}</td>
@@ -891,11 +892,15 @@ def generate_html(data: dict) -> str:
     all_models = sorted({m for d in data.values() for m in d})
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
+    model_tabs = "<div class='tab model-tab active' data-model='all'>All</div>"
+    for m in all_models:
+        model_tabs += f"<div class='tab model-tab' data-model='{m}'>{m}</div>"
+
     tabs = ""
     sections = ""
     for i, domain in enumerate(domains):
         active = " active" if i == 0 else ""
-        tabs += f"<div class='tab{active}' data-domain='{domain}'>{domain}</div>"
+        tabs += f"<div class='tab domain-tab{active}' data-domain='{domain}'>{domain}</div>"
         display = "" if i == 0 else "display:none;"
 
         model_results = data[domain]
@@ -906,6 +911,7 @@ def generate_html(data: dict) -> str:
             n_queries = strategies[0]["n"] if strategies else "?"
 
             content += f"""
+            <div class="model-section" data-model="{model}">
             <h2>{meta.get('model_id', model)}</h2>
             <div class="meta">
               <span>Model: {model}</span>
@@ -918,6 +924,7 @@ def generate_html(data: dict) -> str:
             content += render_metrics_table(strategies, LATENCY_METRICS, "Latency &amp; Tokens")
             content += render_category_table(strategies)
             content += render_per_query_table(strategies, model)
+            content += "</div>"
 
         content += render_cross_model_table(domain, model_results)
         content += render_recall_precision_vs_baseline(domain, model_results)
@@ -1157,6 +1164,19 @@ h3 {{
 .aggregate-section {{
   margin-bottom: 32px;
 }}
+.filter-bar {{
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}}
+.filter-label {{
+  font-size: 13px;
+  color: #9ca3af;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}}
 </style>
 </head>
 <body>
@@ -1164,8 +1184,11 @@ h3 {{
   <h1>Benchmark Report</h1>
   <div class="meta">
     <span>Generated: {now}</span>
-    <span>Models: {', '.join(all_models)}</span>
     <span>Domains: {', '.join(domains)}</span>
+  </div>
+  <div class="filter-bar">
+    <span class="filter-label">Model:</span>
+    <div class="tabs" style="display:inline-flex;">{model_tabs}</div>
   </div>
   {render_aggregate_table(data)}
   {render_graph_structure(domains)}
@@ -1173,12 +1196,25 @@ h3 {{
   {sections}
 </div>
 <script>
-document.querySelectorAll('.tab').forEach(tab => {{
+document.querySelectorAll('.domain-tab').forEach(tab => {{
   tab.addEventListener('click', () => {{
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.domain-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     document.querySelectorAll('.domain-section').forEach(s => s.style.display = 'none');
     document.getElementById('domain-' + tab.dataset.domain).style.display = '';
+  }});
+}});
+document.querySelectorAll('.model-tab').forEach(tab => {{
+  tab.addEventListener('click', () => {{
+    document.querySelectorAll('.model-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    var sel = tab.dataset.model;
+    document.querySelectorAll('.model-section').forEach(s => {{
+      s.style.display = (sel === 'all' || s.dataset.model === sel) ? '' : 'none';
+    }});
+    document.querySelectorAll('tr[data-model]').forEach(r => {{
+      r.style.display = (sel === 'all' || r.dataset.model === sel) ? '' : 'none';
+    }});
   }});
 }});
 </script>

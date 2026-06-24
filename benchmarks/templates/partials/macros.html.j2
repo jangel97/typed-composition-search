@@ -1,0 +1,28 @@
+{% macro render_metrics_table(table_data, title) %}
+{% if table_data %}
+<div class="card">
+  <h3>{{ title }}</h3>
+  <table>
+    <tr>
+      <th>Metric</th>
+      {% for name in table_data.headers %}
+      <th class="strategy">{{ name }}</th>
+      {% endfor %}
+    </tr>
+    {% for row in table_data.rows %}
+    <tr>
+      <td class="label">{{ row.label }}</td>
+      {% for val in row.values %}
+      {% set cls = "val best" if loop.index0 in row.best_indices else "val" %}
+      {% if val is none %}
+      <td class="{{ cls }} na">&mdash;</td>
+      {% else %}
+      <td class="{{ cls }}">{{ val|fmt_val(row.fmt_str) }}</td>
+      {% endif %}
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endmacro %}

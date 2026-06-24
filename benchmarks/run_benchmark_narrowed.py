@@ -3,11 +3,12 @@ import importlib
 import json
 import time
 
-from benchmarks.llm import MODELS, get_llm_config, llm_completion, get_embed_client
+from benchmarks.llm import MODELS, get_llm_config, llm_completion, get_embed_client, embed_texts
 from benchmarks.metrics import avg, std, format_metric, format_pruning, format_tools
+from benchmarks.parallel import run_queries_parallel
 from benchmarks.report import BenchmarkReport, query_graph_metrics
 from benchmarks.run_benchmark import SYSTEM_PROMPT
-from benchmarks.run_retrieval import cosine_similarity, embed_texts
+from benchmarks.run_retrieval import cosine_similarity
 
 
 def narrow_types(
@@ -43,7 +44,7 @@ def predict_types(config, query, system):
     prompt_tokens = usage.prompt_tokens if usage else 0
     completion_tokens = usage.completion_tokens if usage else 0
 
-    text = response.choices[0].message.content.strip()
+    text = (response.choices[0].message.content or "").strip()
     start_idx = text.find("{")
     end_idx = text.rfind("}") + 1
     if start_idx == -1 or end_idx == 0:
@@ -94,30 +95,40 @@ def run_benchmark_narrowed(model_name: str, domain: str, narrow_k: int):
     path_found_count = 0
     all_type_recall_at_k = []
 
-    for q in queries:
-        cat = q.get("category", "clean")
-        stats = report.category_stats[cat]
-
+    def process_query(q):
         query_embedding = embed_texts(embed_client, [q["query"]], embed_model)[0]
         narrowed_names = narrow_types(query_embedding, type_embeddings, type_names, narrow_k)
-
-        expected_src = q["source_type"]
-        expected_tgt = q["target_type"]
-        src_in = expected_src in narrowed_names
-        tgt_in = expected_tgt in narrowed_names
+        src_in = q["source_type"] in narrowed_names
+        tgt_in = q["target_type"] in narrowed_names
         type_recall_k = (int(src_in) + int(tgt_in)) / 2.0
+        system = build_narrowed_prompt(entity_types, narrowed_names)
+        prediction, latency_ms, prompt_tok, completion_tok = predict_types(config, q["query"], system)
+        pred_source = prediction.get("source_type", "?")
+        pred_target = prediction.get("target_type", "?")
+        path = registry.resolve(pred_source, pred_target)
+        return {
+            "q": q, "pred_source": pred_source, "pred_target": pred_target,
+            "path": path, "type_recall_k": type_recall_k,
+            "latency_ms": latency_ms, "prompt_tok": prompt_tok, "completion_tok": completion_tok,
+        }
+
+    results = run_queries_parallel(queries, process_query)
+
+    for r in results:
+        q = r["q"]
+        pred_source, pred_target = r["pred_source"], r["pred_target"]
+        path, latency_ms = r["path"], r["latency_ms"]
+        type_recall_k = r["type_recall_k"]
+
+        cat = q.get("category", "clean")
+        stats = report.category_stats[cat]
+        report.record_latency(latency_ms, r["prompt_tok"], r["completion_tok"])
+
         all_type_recall_at_k.append(type_recall_k)
         stats["type_recall"].append(type_recall_k)
 
-        system = build_narrowed_prompt(entity_types, narrowed_names)
-        prediction, latency_ms, prompt_tok, completion_tok = predict_types(
-            config, q["query"], system,
-        )
-        report.record_latency(latency_ms, prompt_tok, completion_tok)
-
-        pred_source = prediction.get("source_type", "?")
-        pred_target = prediction.get("target_type", "?")
-
+        expected_src = q["source_type"]
+        expected_tgt = q["target_type"]
         expected_st = f"{expected_src}→{expected_tgt}"
         predicted_st = f"{pred_source}→{pred_target}"
 
@@ -131,7 +142,6 @@ def run_benchmark_narrowed(model_name: str, domain: str, narrow_k: int):
             type_exact += 1
             stats["type_exact"] += 1
 
-        path = registry.resolve(pred_source, pred_target)
         path_found = path is not None
         if path_found:
             path_found_count += 1

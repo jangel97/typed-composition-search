@@ -4,8 +4,9 @@ import json
 import math
 import time
 
-from benchmarks.llm import MODELS, get_llm_config, llm_completion, get_embed_client
+from benchmarks.llm import MODELS, get_llm_config, llm_completion, get_embed_client, embed_texts
 from benchmarks.metrics import avg, format_metric, format_pruning, format_tools
+from benchmarks.parallel import run_queries_parallel
 from benchmarks.report import BenchmarkReport
 
 
@@ -31,11 +32,6 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     if norm_a == 0 or norm_b == 0:
         return 0.0
     return dot / (norm_a * norm_b)
-
-
-def embed_texts(client, texts: list[str], model: str) -> list[list[float]]:
-    response = client.embeddings.create(model=model, input=texts)
-    return [item.embedding for item in response.data]
 
 
 def retrieve_top_k(
@@ -68,7 +64,7 @@ def select_tools(
     ])
     latency_ms = (time.monotonic() - start) * 1000
 
-    text = response.choices[0].message.content.strip()
+    text = (response.choices[0].message.content or "").strip()
     start_idx = text.find("[")
     end_idx = text.rfind("]") + 1
     if start_idx == -1 or end_idx == 0:
@@ -128,28 +124,40 @@ def run_retrieval(model_name: str, k: int, domain: str):
     all_tool_count_err = []
     all_hallucinated = 0
 
-    for q in queries:
+    def process_query(q):
         expected_tools = set(q.get("expected_tools", []))
-        cat = q.get("category", "clean")
-        stats = report.category_stats[cat]
-
         query_embedding = embed_texts(embed_client, [q["query"]], embed_model)[0]
         topk_tools = retrieve_top_k(query_embedding, tool_embeddings, all_tools, k)
         topk_names = {t.name for t in topk_tools}
-
         if expected_tools:
             retrieval_hits = len(expected_tools & topk_names)
             retrieval_recall = retrieval_hits / len(expected_tools)
         else:
             retrieval_recall = -1
-        all_retrieval_recall.append(retrieval_recall)
-        if retrieval_recall >= 0:
-            stats["retrieval_recall"].append(retrieval_recall)
-
         valid_predicted, hallucinated, prompt_tok, completion_tok, latency_ms = select_tools(
             config, q["query"], topk_tools,
         )
-        report.record_latency(latency_ms, prompt_tok, completion_tok)
+        return {
+            "q": q, "valid_predicted": valid_predicted, "hallucinated": hallucinated,
+            "retrieval_recall": retrieval_recall, "prompt_tok": prompt_tok,
+            "completion_tok": completion_tok, "latency_ms": latency_ms,
+        }
+
+    results = run_queries_parallel(queries, process_query)
+
+    for r in results:
+        q = r["q"]
+        valid_predicted, hallucinated = r["valid_predicted"], r["hallucinated"]
+        retrieval_recall, latency_ms = r["retrieval_recall"], r["latency_ms"]
+        expected_tools = set(q.get("expected_tools", []))
+        cat = q.get("category", "clean")
+        stats = report.category_stats[cat]
+
+        report.record_latency(latency_ms, r["prompt_tok"], r["completion_tok"])
+
+        all_retrieval_recall.append(retrieval_recall)
+        if retrieval_recall >= 0:
+            stats["retrieval_recall"].append(retrieval_recall)
 
         stats["hallucinated"] += len(hallucinated)
         predicted_set = set(valid_predicted)
