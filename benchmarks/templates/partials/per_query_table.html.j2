@@ -1,0 +1,49 @@
+{% if per_query %}
+<div class="card">
+  <h3>Per-Query Details</h3>
+  {% for section in per_query %}
+  <div class="pq-strategy">
+    <div class="pq-toggle" onclick="var t=document.getElementById('{{ section.table_id }}');t.style.display=t.style.display==='none'?'':'none'">
+      &#9656; {{ section.key }} ({{ section.n_queries }} queries)
+    </div>
+    <table id="{{ section.table_id }}" style="display:none">
+      <tr>
+        <th>Query</th><th class="strategy">Cat</th>
+        {% if section.show_types %}
+        <th class="strategy">Expected</th><th class="strategy">Predicted</th>
+        {% endif %}
+        <th class="strategy">Recall</th><th class="strategy">Prec</th><th class="strategy">F1</th>
+        {% if section.show_graph %}
+        <th class="strategy">PathLen</th><th class="strategy">SrcOut</th><th class="strategy">SrcReach</th>
+        {% endif %}
+        <th class="strategy">Expected Tools</th><th class="strategy">Resolved Tools</th>
+      </tr>
+      {% for q in section.queries %}
+      <tr>
+        <td class="label">{{ q.id }}</td>
+        <td class="val">{{ q.category }}</td>
+        {% if section.show_types %}
+        <td class="val">{{ q.expected_st }}</td>
+        <td class="val {{ 'delta-pos' if q.type_match else 'delta-neg' }}">{{ q.predicted_st }}</td>
+        {% endif %}
+        <td class="val {{ q.recall|metric_cls }}">{{ q.recall|fmt_val(".2f") if q.recall >= 0 else "&mdash;" }}</td>
+        <td class="val">{{ q.precision|fmt_val(".2f") if q.precision >= 0 else "&mdash;" }}</td>
+        {% if q.f1 < 0 %}
+        <td class="val na">&mdash;</td>
+        {% else %}
+        <td class="val {{ q.f1|metric_cls }}">{{ "%.2f"|format(q.f1) }}</td>
+        {% endif %}
+        {% if section.show_graph %}
+        <td class="val">{{ q.path_length if q.path_length is not none else "&mdash;" }}</td>
+        <td class="val">{{ q.source_out_degree }}</td>
+        <td class="val">{{ q.source_reachable }}</td>
+        {% endif %}
+        <td class="val" style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">{{ q.expected_tools }}</td>
+        <td class="val" style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">{{ q.resolved_tools }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

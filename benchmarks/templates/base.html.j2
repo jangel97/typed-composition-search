@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Benchmark Report</title>
+<style>
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e0e0e0;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.card {
+  background: #1a1d27;
+  border: 1px solid #2a2d3a;
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+th {
+  text-align: left;
+  color: #9ca3af;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 11px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #2a2d3a;
+}
+th.strategy {
+  text-align: right;
+}
+td {
+  padding: 6px 12px;
+  border-bottom: 1px solid #1f2233;
+}
+td.val {
+  text-align: right;
+}
+td.best {
+  color: #34d399;
+  font-weight: 600;
+}
+td.label {
+  color: #9ca3af;
+  font-weight: 500;
+  white-space: nowrap;
+}
+td.na {
+  color: #555;
+}
+td.heat {
+  border-radius: 4px;
+}
+td.delta-pos {
+  color: #34d399;
+}
+td.delta-neg {
+  color: #f87171;
+}
+.delta {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.baseline-row td {
+  color: #9ca3af;
+  font-style: italic;
+}
+.recall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 20px;
+}
+.recall-model h4 {
+  font-size: 13px;
+  color: #c0c0c0;
+  margin: 0 0 8px 0;
+}
+.pq-toggle {
+  cursor: pointer;
+  color: #6366f1;
+  font-size: 13px;
+  padding: 4px 0;
+  user-select: none;
+}
+.pq-toggle:hover {
+  color: #818cf8;
+}
+.pq-strategy {
+  margin-bottom: 8px;
+}
+.failure-group {
+  margin-bottom: 16px;
+}
+.failure-group h4 {
+  font-size: 13px;
+  color: #f87171;
+  margin: 0 0 4px 0;
+}
+.failure-group p {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 0 0 8px 0;
+}
+.failure-ids {
+  font-size: 12px;
+  color: #e0e0e0;
+  background: #0f1117;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: monospace;
+}
+.eda-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+.eda-grid h4 {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 0 0 8px 0;
+}
+h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #c0c0c0;
+  margin: 32px 0 12px 0;
+}
+h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+.meta {
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 16px;
+}
+.meta span {
+  margin-right: 16px;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.tab {
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #1a1d27;
+  border: 1px solid #2a2d3a;
+  color: #9ca3af;
+  font-size: 13px;
+  user-select: none;
+}
+.tab.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+.tab:hover {
+  border-color: #6366f1;
+}
+.summary-card {
+  border-left: 3px solid #6366f1;
+}
+.summary-subtitle {
+  font-size: 13px;
+  color: #9ca3af;
+  margin-bottom: 16px;
+}
+.summary-subtitle strong {
+  color: #6366f1;
+}
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+.summary-item {
+  text-align: center;
+  padding: 12px;
+  background: #0f1117;
+  border-radius: 8px;
+}
+.summary-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.summary-value.pos { color: #34d399; }
+.summary-value.neg { color: #f87171; }
+.summary-label {
+  font-size: 12px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+}
+.summary-detail {
+  font-size: 11px;
+  color: #555;
+  margin-top: 2px;
+}
+.aggregate-section {
+  margin-bottom: 32px;
+}
+.filter-bar {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.filter-label {
+  font-size: 13px;
+  color: #9ca3af;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Benchmark Report</h1>
+  <div class="meta">
+    <span>Generated: {{ generated_at }}</span>
+    <span>Domains: {{ domains|join(', ') }}</span>
+  </div>
+
+  <div class="filter-bar">
+    <span class="filter-label">Model:</span>
+    <div class="tabs" style="display:inline-flex;">
+      <div class="tab model-tab active" data-model="all">All</div>
+      {% for m in all_models %}
+      <div class="tab model-tab" data-model="{{ m }}">{{ m }}</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% include "partials/aggregate_table.html.j2" %}
+  {% include "partials/graph_structure.html.j2" %}
+
+  <div class="tabs">
+    {% for domain in domains %}
+    <div class="tab domain-tab{{ ' active' if loop.first else '' }}" data-domain="{{ domain }}">{{ domain }}</div>
+    {% endfor %}
+  </div>
+
+  {% for domain in domains %}
+  {% set is_first = loop.first %}
+  {% include "domain_section.html.j2" %}
+  {% endfor %}
+</div>
+
+<script>
+document.querySelectorAll('.domain-tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.domain-tab').forEach(function(t) { t.classList.remove('active'); });
+    tab.classList.add('active');
+    document.querySelectorAll('.domain-section').forEach(function(s) { s.style.display = 'none'; });
+    document.getElementById('domain-' + tab.dataset.domain).style.display = '';
+  });
+});
+document.querySelectorAll('.model-tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.model-tab').forEach(function(t) { t.classList.remove('active'); });
+    tab.classList.add('active');
+    var sel = tab.dataset.model;
+    document.querySelectorAll('.model-section').forEach(function(s) {
+      s.style.display = (sel === 'all' || s.dataset.model === sel) ? '' : 'none';
+    });
+    document.querySelectorAll('tr[data-model]').forEach(function(r) {
+      r.style.display = (sel === 'all' || r.dataset.model === sel) ? '' : 'none';
+    });
+  });
+});
+</script>
+</body>
+</html>

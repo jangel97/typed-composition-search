@@ -1,0 +1,25 @@
+{% if category_table %}
+<div class="card">
+  <h3>F1 by Category</h3>
+  <table>
+    <tr>
+      <th>Category</th>
+      {% for name in category_table.headers %}
+      <th class="strategy">{{ name }}</th>
+      {% endfor %}
+    </tr>
+    {% for cat in category_table.categories %}
+    <tr>
+      <td class="label">{{ cat.name }}</td>
+      {% for val in cat["values"] %}
+      {% if val is none or val < 0 %}
+      <td class="val na">&mdash;</td>
+      {% else %}
+      <td class="{{ 'val best' if loop.index0 in cat.best_indices else 'val' }} heat" style="background:{{ val|f1_color }}">{{ "%.2f"|format(val) }}</td>
+      {% endif %}
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}

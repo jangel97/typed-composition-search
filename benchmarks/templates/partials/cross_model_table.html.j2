@@ -1,23 +1,22 @@
-{% macro render_metrics_table(table_data, title) %}
-{% if table_data %}
+{% if cross_model %}
 <div class="card">
-  <h3>{{ title }}</h3>
+  <h3>Cross-Model Comparison (F1)</h3>
   <table>
     <tr>
-      <th>Metric</th>
-      {% for name in table_data.headers %}
-      <th class="strategy">{{ name }}</th>
+      <th>Strategy</th>
+      {% for m in cross_model.models %}
+      <th class="strategy">{{ m }}</th>
       {% endfor %}
     </tr>
-    {% for row in table_data.rows %}
+    {% for row in cross_model.rows %}
     <tr>
-      <td class="label">{{ row.label }}</td>
+      <td class="label">{{ row.key }}</td>
       {% for val in row["values"] %}
       {% set cls = "val best" if loop.index0 in row.best_indices else "val" %}
       {% if val is none %}
       <td class="{{ cls }} na">&mdash;</td>
       {% else %}
-      <td class="{{ cls }}">{{ val|fmt_val(row.fmt_str) }}</td>
+      <td class="{{ cls }}">{{ "%.2f"|format(val) }}</td>
       {% endif %}
       {% endfor %}
     </tr>
@@ -25,4 +24,3 @@
   </table>
 </div>
 {% endif %}
-{% endmacro %}

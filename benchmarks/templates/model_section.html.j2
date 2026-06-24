@@ -1,0 +1,25 @@
+{% from "partials/macros.html.j2" import render_metrics_table %}
+
+<div class="model-section" data-model="{{ model }}">
+  <h2>{{ md.meta.model_id|default(model) }}</h2>
+  <div class="meta">
+    <span>Model: {{ model }}</span>
+    <span>Queries: {{ md.n_queries }}</span>
+    <span>Run: {{ md.meta.timestamp[:19] if md.meta.timestamp else '?' }}</span>
+  </div>
+
+  {% set summary = md.summary %}
+  {% include "partials/summary_card.html.j2" %}
+
+  {% set decomposition = md.decomposition %}
+  {% include "partials/decomposition_card.html.j2" %}
+
+  {{ render_metrics_table(md.core_metrics, "Core Metrics") }}
+  {{ render_metrics_table(md.latency_metrics, "Latency &amp; Tokens") }}
+
+  {% set category_table = md.category_table %}
+  {% include "partials/category_table.html.j2" %}
+
+  {% set per_query = md.per_query %}
+  {% include "partials/per_query_table.html.j2" %}
+</div>

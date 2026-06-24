@@ -11,7 +11,7 @@
     {% for row in graph_structure.rows %}
     <tr>
       <td class="label">{{ row.label }}</td>
-      {% for val in row.values %}
+      {% for val in row["values"] %}
       {% if val is number and val is float %}
       <td class="val">{{ "%.2f"|format(val) }}</td>
       {% else %}

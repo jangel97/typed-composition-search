@@ -1,0 +1,44 @@
+{% if recall_precision %}
+<div class="card">
+  <h3>Recall &amp; Precision vs Baseline</h3>
+  <div class="recall-grid">
+    {% for section in recall_precision %}
+    <div class="recall-model">
+      <h4>{{ section.model }}</h4>
+      <table>
+        <tr><th>Strategy</th><th class="strategy">Recall</th><th class="strategy">Precision</th></tr>
+        {% for row in section.rows %}
+        {% if row.is_baseline is defined and row.is_baseline %}
+        <tr class="baseline-row">
+          <td class="label">baseline</td>
+          <td class="val">{{ "%.2f"|format(row.recall) if row.recall is not none else "&mdash;" }}</td>
+          <td class="val">{{ "%.2f"|format(row.precision) if row.precision is not none else "&mdash;" }}</td>
+        </tr>
+        {% elif row.recall is none and row.precision is none %}
+        <tr>
+          <td class="label">{{ row.key }}</td>
+          <td class="val na">&mdash;</td>
+          <td class="val na">&mdash;</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td class="label">{{ row.key }}</td>
+          {% if row.recall is not none and row.r_delta is not none %}
+          <td class="val {{ row.r_delta|delta_cls }}">{{ "%.2f"|format(row.recall) }} <span class="delta">({{ row.r_delta|delta_sign }}{{ "%.2f"|format(row.r_delta) }})</span></td>
+          {% else %}
+          <td class="val na">&mdash;</td>
+          {% endif %}
+          {% if row.precision is not none and row.p_delta is not none %}
+          <td class="val {{ row.p_delta|delta_cls }}">{{ "%.2f"|format(row.precision) }} <span class="delta">({{ row.p_delta|delta_sign }}{{ "%.2f"|format(row.p_delta) }})</span></td>
+          {% else %}
+          <td class="val na">&mdash;</td>
+          {% endif %}
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
