@@ -85,7 +85,7 @@ def run_oracle_graph(domain: str):
         print(f"  {cat:<12} path={s['path_found']}/{n_cat}  {f1_str}")
 
     return {
-        **report.base_result_dict("oracle-graph"),
+        **report.base_result_dict("graph-perfect"),
         "path_found": path_found_count,
         "path_found_pct": path_found_count / n,
     }

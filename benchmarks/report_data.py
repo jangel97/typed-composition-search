@@ -6,8 +6,8 @@ from pathlib import Path
 DOMAIN_REGISTRIES = {}
 
 STRATEGY_ORDER = [
-    "oracle-graph", "model-types",
-    "baseline", "retrieval", "graph", "graph-narrowed",
+    "graph-perfect", "model-types",
+    "baseline", "baseline-tools", "retrieval", "graph", "graph-narrowed",
     "graph-probs", "graph-reverse", "graph-reverse-probs", "constrained-reverse",
 ]
 
@@ -35,7 +35,7 @@ LATENCY_METRICS = [
     ("Avg Compl Tok",   "avg_completion_tokens", ".0f", True),
 ]
 
-_EXCLUDE_FROM_BEST = {"baseline", "retrieval", "oracle-graph", "model-types"}
+_EXCLUDE_FROM_BEST = {"baseline", "baseline-tools", "retrieval", "graph-perfect", "model-types"}
 
 
 def _get_graph_metrics(domain: str) -> dict | None:
@@ -220,10 +220,17 @@ def preprocess_summary(strategies: list[dict]) -> dict | None:
 
     best_key, best = max(graph_strats, key=lambda x: x[1].get("f1", 0))
     best_f1 = best.get("f1", 0)
+    best_rec = best.get("recall", 0)
+    best_prec = best.get("precision", 0)
     best_hall = best.get("hallucinated", 0)
     best_tok = best.get("avg_prompt_tokens", 0)
 
+    bl_rec = bl.get("recall", 0)
+    bl_prec = bl.get("precision", 0)
+
     f1_delta = best_f1 - bl_f1
+    rec_delta = best_rec - bl_rec
+    prec_delta = best_prec - bl_prec
     tok_pct = (1 - best_tok / bl_tok) * 100 if bl_tok > 0 else 0
 
     return {
@@ -231,6 +238,12 @@ def preprocess_summary(strategies: list[dict]) -> dict | None:
         "best_f1": best_f1,
         "bl_f1": bl_f1,
         "f1_delta": f1_delta,
+        "best_rec": best_rec,
+        "bl_rec": bl_rec,
+        "rec_delta": rec_delta,
+        "best_prec": best_prec,
+        "bl_prec": bl_prec,
+        "prec_delta": prec_delta,
         "best_hall": best_hall,
         "bl_hall": bl_hall,
         "tok_pct": tok_pct,
@@ -243,7 +256,7 @@ def preprocess_decomposition(strategies: list[dict]) -> dict | None:
     strategies = order_strategies(strategies)
     by_key = {_strategy_key(s): s for s in strategies}
 
-    oracle = by_key.get("oracle-graph")
+    oracle = by_key.get("graph-perfect")
     model_types = by_key.get("model-types")
     graph = by_key.get("graph")
 
@@ -470,7 +483,7 @@ def preprocess_graph_eda(domain: str, model_results: dict) -> dict | None:
     for model in sorted(model_results.keys()):
         for s in model_results[model]["strategies"]:
             key = _strategy_key(s)
-            if key in ("baseline", "retrieval", "oracle-graph", "model-types"):
+            if key in ("baseline", "baseline-tools", "retrieval", "graph-perfect", "model-types"):
                 continue
             for q in s.get("per_query", []):
                 if "path_length" in q and q.get("f1", -1) >= 0:
@@ -558,7 +571,7 @@ def preprocess_failure_analysis(domain: str, model_results: dict) -> dict | None
                         all_fail = False
                     if key == "baseline" and rec > 0:
                         baseline_ok = True
-                    if key not in ("baseline", "retrieval", "oracle-graph", "model-types") and rec <= 0:
+                    if key not in ("baseline", "retrieval", "graph-perfect", "model-types") and rec <= 0:
                         graph_fail = True
 
         if all_fail:

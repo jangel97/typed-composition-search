@@ -49,6 +49,21 @@ Expected observations:
 
 If this hypothesis is rejected, improvements observed later must be attributed primarily to graph constraints rather than problem decomposition.
 
+<!-- TODO: Reframe H1. Current data shows BothAcc (both types correct) can be
+     lower than baseline F1 (e.g. cicd: 0.346 vs 0.520), so "entity prediction
+     is easier" doesn't hold as stated. The comparison is also unfair: BothAcc
+     requires two exact matches while baseline F1 gives partial credit.
+     
+     Proposed reframing: the claim is not that type classification is easier in
+     absolute terms, but that decomposing tool selection into type classification
+     + graph search produces better end-to-end outcomes. The graph provides
+     structural recovery that compensates for imperfect type predictions.
+     Even cicd (worst type accuracy) achieves graph F1=0.760 vs baseline F1=0.520.
+     
+     Individual type predictions ARE over a smaller label space (~40 types vs
+     ~135 tools), but requiring two correct predictions compounds the error.
+     The real contribution is the decomposition + graph, not easier classification. -->
+
 ---
 
 # System Hypothesis (H2)

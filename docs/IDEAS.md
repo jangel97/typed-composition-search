@@ -295,7 +295,7 @@ ansible   0.63   — entity types niche, terminology ambiguous
 
 Domains with well-known types (Kubernetes: `Pod`, `Deployment`, `Namespace`) achieve significantly higher F1 than domains with niche types (Ansible: `Playbook`, `Role`, `Inventory`). When entity types fall outside the model's training distribution, type prediction becomes the bottleneck — not the graph structure.
 
-The Ansible oracle-graph achieves 0.77 F1, confirming the graph itself is sound. The gap between oracle (0.77) and best LLM prediction (0.63) represents headroom lost to poor type classification.
+The Ansible graph-perfect achieves 0.77 F1, confirming the graph itself is sound. The gap between oracle (0.77) and best LLM prediction (0.63) represents headroom lost to poor type classification.
 
 ### Workaround: Finetuned Encoder for Type Prediction
 

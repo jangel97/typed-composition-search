@@ -5,8 +5,18 @@
   <div class="summary-subtitle">Winner: <strong>{{ s.best_key }}</strong> (F1 = {{ "%.2f"|format(s.best_f1) }})</div>
   <div class="summary-grid">
     <div class="summary-item">
+      <div class="summary-value {{ 'pos' if s.rec_delta >= 0 else 'neg' }}">{{ s.rec_delta|delta_sign }}{{ "%.2f"|format(s.rec_delta) }}</div>
+      <div class="summary-label">Recall</div>
+      <div class="summary-detail">{{ "%.2f"|format(s.bl_rec) }} &rarr; {{ "%.2f"|format(s.best_rec) }}</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-value {{ 'pos' if s.prec_delta >= 0 else 'neg' }}">{{ s.prec_delta|delta_sign }}{{ "%.2f"|format(s.prec_delta) }}</div>
+      <div class="summary-label">Precision</div>
+      <div class="summary-detail">{{ "%.2f"|format(s.bl_prec) }} &rarr; {{ "%.2f"|format(s.best_prec) }}</div>
+    </div>
+    <div class="summary-item">
       <div class="summary-value {{ 'pos' if s.f1_delta >= 0 else 'neg' }}">{{ s.f1_delta|delta_sign }}{{ "%.2f"|format(s.f1_delta) }}</div>
-      <div class="summary-label">F1 improvement</div>
+      <div class="summary-label">F1</div>
       <div class="summary-detail">{{ "%.2f"|format(s.bl_f1) }} &rarr; {{ "%.2f"|format(s.best_f1) }}</div>
     </div>
     <div class="summary-item">

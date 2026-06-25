@@ -103,6 +103,8 @@ class BenchmarkReport:
         print(f"  Avg F1:             {avg(self.all_f1):.2f} ± {std(self.all_f1):.2f}")
 
     def print_pruning(self):
+        if self.total_tools <= 0:
+            return
         avg_tools = avg(self.all_tool_counts)
         pruning = 1.0 - avg_tools / self.total_tools
         all_pruning = [1.0 - t / self.total_tools for t in self.all_tool_counts if t > 0]
@@ -126,7 +128,7 @@ class BenchmarkReport:
 
     def base_result_dict(self, strategy: str, hallucinated: int = 0) -> dict:
         avg_tools = avg(self.all_tool_counts)
-        pruning = 1.0 - avg_tools / self.total_tools
+        pruning = (1.0 - avg_tools / self.total_tools) if self.total_tools > 0 else -1
 
         cat_f1 = {}
         for cat in sorted(self.category_stats.keys()):
