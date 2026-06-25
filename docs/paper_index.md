@@ -71,7 +71,30 @@ Tool Composition
 
 # 2. Background and Motivation
 
-## 2.1 Tool Routing
+## 2.1 What Is a Tool?
+
+Existing systems treat a tool as an opaque function: a name, a description,
+and a calling convention. Selection reduces to choosing the right function
+from a catalog.
+
+We redefine a tool as a **typed transformation** between entity types:
+
+```text
+Tool : SourceType → TargetType
+```
+
+A tool consumes one entity type and produces another. For example,
+`list_pods` transforms a `Namespace` into a `PodList`. `get_pod_logs`
+transforms a `Pod` into `Logs`.
+
+This redefinition has a structural consequence: tools are no longer
+prediction targets — they are **edges in a typed composition graph**. Nodes
+are entity types. Edges are tools. Multi-step workflows become paths.
+
+The LLM's job is no longer to select tools. It is to predict the source and
+target entity types. The graph recovers the tool path.
+
+## 2.2 Tool Routing
 
 Definition of tool routing.
 

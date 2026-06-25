@@ -1,16 +1,35 @@
-# Hypotheses
+# Research Questions and Hypotheses
+
+Direct tool routing asks the LLM to solve both semantic understanding and workflow composition simultaneously. We separate these concerns by assigning semantic reasoning to the LLM and compositional reasoning to a typed graph.
 
 ## Research Question
 
-Can tool routing be improved by decomposing tool selection into
-graph-constrained entity prediction and graph search?
+Can graph-constrained entity reasoning provide a better formulation for tool routing than direct tool selection?
+
+---
+
+# H0: Separation of Concerns
+
+Semantic reasoning and compositional reasoning are distinct problems and
+should be handled by different computational mechanisms.
+
+LLMs are well suited for semantic entity prediction — understanding what a
+user's query is about. Graph search is well suited for deterministic
+composition — finding which tools connect the predicted entities.
+
+Combining both yields a system where each component operates at the
+abstraction level it was designed for: language models reason about meaning,
+graphs reason about structure, tools execute transformations.
+
+H1–H3 are experimental consequences of this premise.
 
 ---
 
 # H1: Decomposition
 
-Tool routing is better formulated as graph-constrained entity prediction
-followed by graph search than as direct tool selection.
+We hypothesize that graph-constrained entity prediction followed by graph
+search provides a more effective and more interpretable formulation for tool routing than direct tool
+selection.
 
 Instead of the LLM choosing from N tools in a single unconstrained decision,
 the system separates two concerns:
@@ -44,7 +63,7 @@ composition. Adding more tools to the graph does not change the LLM's task.
 
 ---
 
-# H2: Structural Graph Constraints
+# H2: Graph Reachability Reduces the Effective Decision Space
 
 Graph-constrained decomposition reduces the effective routing decision space
 even when the total number of entity types is comparable to the number of
@@ -67,6 +86,9 @@ is over a small, structurally determined subset — not the full type space.
 entity_pruning = 1 - (reachable_sources / total_entity_types)
 ```
 
+Entity pruning quantifies the reduction of the effective search space
+induced purely by graph reachability.
+
 **Expected observations:**
 
 - Entity-level pruning is high across all domains, regardless of the
@@ -80,11 +102,14 @@ entity_pruning = 1 - (reachable_sources / total_entity_types)
 
 # H3: Performance Decomposition
 
-End-to-end routing performance decomposes into entity prediction quality
-and graph resolution quality, making failures interpretable.
+The primary source of routing error is incorrect entity prediction rather
+than graph composition.
 
-Instead of treating the pipeline as a black box, the recall decomposition
-separates two independent sources of error:
+If the graph correctly models the domain, end-to-end recall can be
+predicted from entity prediction accuracy and graph reachability.
+
+This decomposition explains where routing failures originate and enables
+independent optimization of semantic prediction and graph structure.
 
 ```
 Recall_e2e = P(types correct) × Recall_correct + P(types wrong) × Recall_wrong
@@ -140,7 +165,7 @@ contribution of real API structure. (Planned for future work.)
 
 ---
 
-# Null Hypothesis (H0)
+# Null Hypothesis
 
 There is no significant difference between entity-based graph routing,
 retrieval-based routing, and direct tool selection. Any observed performance
@@ -150,8 +175,8 @@ differences are attributable to chance.
 
 # Central Thesis
 
-Tool routing can be decomposed into a sequence of graph-constrained entity
-prediction problems.
+Tool routing is fundamentally an entity reasoning problem rather than a tool selection problem.
+Tool composition emerges naturally from graph search over typed transformations.
 
 The LLM performs semantic reasoning, while the graph performs compositional
 reasoning. Each component does what it is good at.
