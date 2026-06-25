@@ -129,8 +129,8 @@ def main():
     parser = argparse.ArgumentParser(description="Run all benchmark strategies and save results as JSON")
     parser.add_argument("--models", nargs="*", default=list(MODELS.keys()),
                         help=f"Models to benchmark (default: all). Options: {', '.join(MODELS.keys())}")
-    parser.add_argument("--domains", nargs="*", default=["k8s", "ansible", "github", "cicd"],
-                        help="Tool domains (default: k8s ansible github cicd)")
+    parser.add_argument("--domains", nargs="*", default=["k8s", "ansible", "github", "cicd", "shopify"],
+                        help="Tool domains (default: k8s ansible github cicd shopify)")
     parser.add_argument("--output-dir", type=Path, default=Path("benchmarks/results"),
                         help="Output directory for JSON results (default: benchmarks/results)")
     parser.add_argument("--force", action="store_true",

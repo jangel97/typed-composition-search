@@ -2,219 +2,163 @@
 
 ## Research Question
 
-Can tool routing be improved by decomposing tool selection into entity-level reasoning and graph search?
+Can tool routing be improved by decomposing tool selection into
+graph-constrained entity prediction and graph search?
 
 ---
 
-# Main Hypothesis (H1)
+# H1: Decomposition
 
-Entity type prediction is easier than direct tool selection.
+Tool routing is better formulated as graph-constrained entity prediction
+followed by graph search than as direct tool selection.
 
-Tool routing can be reformulated as a higher-level classification problem in which the model predicts entity types rather than individual tools.
+Instead of the LLM choosing from N tools in a single unconstrained decision,
+the system separates two concerns:
 
-Instead of selecting from hundreds of tools directly, the model predicts a small number of abstract entity types and relies on graph search to recover the execution path.
+- **The LLM predicts concepts** — what entity types the user's query is about
+  (semantic understanding).
+- **The graph composes the path** — which tools, in what order, through which
+  intermediate types (compositional structure).
 
-```text
-Traditional routing
-
-Query
-  ↓
-Tool Selection
-  ↓
-Execution
-```
+Rather than predicting executable tools directly, the model predicts entity
+types. Tools become graph edges that realize transformations between entities.
 
 ```text
-Typed routing
+Baseline:      Query → Choose among N tools (unconstrained)
 
-Query
-  ↓
-Entity Classification
-  ↓
-Graph Search
-  ↓
-Tool Path
-  ↓
-Execution
+Typed routing: Query → Predict entity types → Graph search → Tool path
 ```
 
-The key claim is that entity types form a more stable and lower-complexity representation than tools.
+This separation allows each component to do what it is good at. The LLM
+handles natural language understanding; the graph handles structural
+composition. Adding more tools to the graph does not change the LLM's task.
 
-Expected observations:
+**Expected observations:**
 
-* Entity prediction accuracy exceeds direct tool-selection accuracy.
-* Entity prediction remains stable as the number of tools grows.
-* Errors in graph routing are strongly correlated with entity-classification failures.
-* Many queries that fail under direct tool selection succeed when routed through entity predictions.
-
-If this hypothesis is rejected, improvements observed later must be attributed primarily to graph constraints rather than problem decomposition.
-
-<!-- TODO: Reframe H1. Current data shows BothAcc (both types correct) can be
-     lower than baseline F1 (e.g. cicd: 0.346 vs 0.520), so "entity prediction
-     is easier" doesn't hold as stated. The comparison is also unfair: BothAcc
-     requires two exact matches while baseline F1 gives partial credit.
-     
-     Proposed reframing: the claim is not that type classification is easier in
-     absolute terms, but that decomposing tool selection into type classification
-     + graph search produces better end-to-end outcomes. The graph provides
-     structural recovery that compensates for imperfect type predictions.
-     Even cicd (worst type accuracy) achieves graph F1=0.760 vs baseline F1=0.520.
-     
-     Individual type predictions ARE over a smaller label space (~40 types vs
-     ~135 tools), but requiring two correct predictions compounds the error.
-     The real contribution is the decomposition + graph, not easier classification. -->
+- Graph-constrained routing outperforms direct tool selection (baseline)
+  in end-to-end F1 across models and domains.
+- Graph-constrained routing produces zero hallucinated tools (tools are
+  limited to valid graph paths).
+- The approach consistently improves routing across the evaluated models
+  and domains.
 
 ---
 
-# System Hypothesis (H2)
+# H2: Structural Graph Constraints
 
-Typed composition graphs improve routing accuracy compared to retrieval-only and direct tool-selection approaches.
+Graph-constrained decomposition reduces the effective routing decision space
+even when the total number of entity types is comparable to the number of
+tools.
 
-Once routing is decomposed into entity prediction, graph search can recover valid execution paths by exploiting structural relationships between entities.
+The benefit is **not** that there are fewer entity labels than tools — in some
+domains the counts are nearly identical (CI/CD: 51 types, 54 tools). The
+benefit is that **graph reachability constrains each prediction step**:
 
-In domains where tools compose through typed transformations, graph-based routing will outperform approaches based solely on semantic similarity or direct tool prediction.
+1. The LLM predicts the target entity type.
+2. Reverse BFS computes which source types can reach that target.
+3. The LLM predicts the source from this constrained set.
 
-Expected observations:
+After step 1, most of the type space is pruned away. The second prediction
+is over a small, structurally determined subset — not the full type space.
 
-* Higher Precision
-* Higher Recall
-* Higher F1
-* Lower hallucination rate
-* Fewer unnecessary tool invocations
-* Higher valid-path rate
+**Key metric:**
 
-This hypothesis evaluates whether the proposed routing framework is practically useful.
+```
+entity_pruning = 1 - (reachable_sources / total_entity_types)
+```
+
+**Expected observations:**
+
+- Entity-level pruning is high across all domains, regardless of the
+  type-to-tool ratio.
+- Domains with type counts close to tool counts still exhibit high
+  entity pruning.
+- The pruning is a property of the graph topology, independent of the
+  LLM used for entity prediction.
 
 ---
 
-# Structure Hypothesis (H3)
+# H3: Performance Decomposition
 
-Graph topology carries information that cannot be recovered from semantic similarity alone.
+End-to-end routing performance decomposes into entity prediction quality
+and graph resolution quality, making failures interpretable.
 
-The performance gain of graph-based routing is not solely a consequence of better language understanding or additional processing stages.
+Instead of treating the pipeline as a black box, the recall decomposition
+separates two independent sources of error:
 
-If graph structure is replaced with random or corrupted connectivity, routing performance will significantly degrade.
-
-Experimental variants:
-
-```text
-Real Graph
-Shuffled Graph
-Random Graph
+```
+Recall_e2e = P(types correct) × Recall_correct + P(types wrong) × Recall_wrong
 ```
 
-Expected observations:
+Where:
 
-```text
-Real Graph
-    >
-Shuffled Graph
-    >
-Random Graph
-```
+- **P(types correct)** = fraction of queries where the LLM predicts both
+  source and target types correctly (measured by `model-types` strategy).
+- **Recall_correct** = recall when ground-truth types are given to the graph
+  (measured by `graph-perfect` strategy). Isolates graph quality.
+- **Recall_wrong** = average recall on queries where the LLM predicted
+  incorrect types. Measures graph robustness to type errors.
 
-Measured by:
+**Expected observations:**
 
-* Precision
-* Recall
-* F1
-* Path validity
-* Hallucination rate
-
-This hypothesis tests whether graph structure itself contributes useful information.
-
----
-
-# Scalability Hypothesis (H4)
-
-Graph-based routing scales more effectively than direct tool selection.
-
-As tool catalogs grow, direct tool selection becomes increasingly difficult due to larger label spaces and prompt sizes.
-
-Because typed routing operates primarily over entity types, performance should degrade more slowly as the number of tools increases.
-
-Expected observations:
-
-* Smaller reduction in F1 as tools are added
-* Stable routing performance with hundreds of tools
-* Lower prompt complexity
-* Reduced context-window requirements
-
-This hypothesis evaluates whether typed routing remains practical in large tool ecosystems.
+- The decomposition accurately predicts actual end-to-end recall.
+- When the gap between predicted and actual recall is small, failures can
+  be attributed to either type prediction (improve the LLM/classifier) or
+  graph coverage (improve the type ontology).
 
 ---
 
 # Exploratory Questions
 
-These questions are investigated as secondary analyses rather than core claims.
+These are investigated as secondary analyses, not core claims.
 
 ## E1: Target-First Planning
 
-Do users specify desired outcomes more reliably than starting entities?
+Does predicting the target type first (reverse strategy) produce better
+results than predicting the source first (forward strategy)?
 
-Expected observations:
-
-* Higher path-found rate
-* Improved recall
-* Better source prediction after graph narrowing
-
----
+Intuition: users describe desired outcomes ("I want inventory levels") more
+reliably than starting points. Reverse BFS after target prediction also
+provides stronger structural constraints for source prediction.
 
 ## E2: Retrieval-Augmented Entity Prediction
 
-Can semantic retrieval improve entity prediction by narrowing the candidate type space?
-
-Expected observations:
-
-* Better entity-classification accuracy
-* Better routing accuracy
-* Hybrid methods outperform retrieval-only approaches
-
----
+Can semantic retrieval over tool descriptions narrow the candidate type space
+before entity prediction, improving classification accuracy?
 
 ## E3: Reduced Model Dependence
 
-Do graph constraints reduce sensitivity to the underlying language model?
+Do graph constraints reduce performance variance across different LLMs?
+If the graph provides structural guarantees, the choice of model should
+matter less than in unconstrained selection.
 
-Expected observations:
+## E4: Graph Topology Ablation
 
-* Smaller performance differences across models
-* Lower hallucination variance
-* More stable routing behavior
+Does the specific graph topology matter, or would any graph provide similar
+benefits? Testing with shuffled or random graphs would isolate the causal
+contribution of real API structure. (Planned for future work.)
 
 ---
 
 # Null Hypothesis (H0)
 
-There is no statistically significant difference between:
-
-* Entity-based routing
-* Retrieval-based routing
-* Direct tool-selection approaches
-
-Any observed performance differences are attributable to chance.
-
----
-
-# Expected Contributions
-
-1. A reformulation of tool routing as an entity-classification problem.
-2. A typed composition graph framework for recovering executable tool paths.
-3. Empirical evidence that entity-level abstractions simplify tool routing.
-4. A study of how graph topology influences routing quality.
-5. A scalability analysis across large tool ecosystems.
-6. Design principles for future tool-using agents.
+There is no significant difference between entity-based graph routing,
+retrieval-based routing, and direct tool selection. Any observed performance
+differences are attributable to chance.
 
 ---
 
 # Central Thesis
 
-The primary challenge in tool routing is not selecting tools.
+Tool routing can be decomposed into a sequence of graph-constrained entity
+prediction problems.
 
-It is identifying the correct entities and relationships involved in a task.
+The LLM performs semantic reasoning, while the graph performs compositional
+reasoning. Each component does what it is good at.
 
-By elevating routing from tool-level prediction to entity-level reasoning, the problem becomes simpler, more scalable, and more robust.
+This decomposition:
 
-Graph search can then recover executable tool compositions from these entity predictions.
-
-Therefore, tool routing should be formulated as entity classification followed by constrained graph search, rather than as direct tool selection or retrieval alone.
+- Outperforms unconstrained tool selection across models and domains (H1).
+- Reduces the effective decision space through graph reachability, independent
+  of the LLM (H2).
+- Enables interpretable failure analysis via the recall decomposition (H3).

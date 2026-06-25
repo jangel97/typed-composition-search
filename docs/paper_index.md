@@ -95,13 +95,15 @@ Multi-stage narrowing of candidate tools.
 
 Users describe entities and relationships, not tool names. Models reason about semantics. Tools are implementation details.
 
-The core insight: tool routing is not fundamentally a tool selection problem. It is an entity reasoning problem followed by graph reachability.
+The core insight: tool routing can be **decomposed** into a sequence of graph-constrained entity prediction problems.
 
-Entity types provide a stable abstraction layer because:
+The benefit is not that there are fewer entity types than tools — in some domains the counts are nearly identical (CI/CD: 51 types, 54 tools). The benefit is that **graph reachability constrains each prediction step**, reducing the effective decision space:
 
-* Multiple tools map to the same entity pair (many-to-one compression)
-* Entity names are semantically distinct (`Deployment` vs `Pod` is clearer than `get_deployment_pods` vs `list_pod_containers`)
-* Entity relationships are domain-invariant — the graph structure generalizes across tools
+* After predicting the target type, reverse reachability prunes the valid source candidates (56–87% entity pruning across domains (70% overall)).
+* This constraint is a property of the graph topology, independent of the underlying LLM.
+* Even in domains where types ≈ tools, the graph reduces the second decision to a small subset (CI/CD: ~6 candidates out of 51).
+
+See `docs/graph_constraint.md` for the full argument and evidence.
 
 ## 2.4 Limitations of Existing Approaches
 
@@ -224,7 +226,13 @@ Restricting tool selection to valid graph paths significantly reduces hallucinat
 
 Multiple tools often operate over the same entity relationships. Entity types are more semantically distinct and generalizable than tool names, making entity prediction a more reliable decision boundary even when the type count is similar to the tool count.
 
-## H4: Routing Performance Decomposes Into Type Prediction and Graph Reachability
+## H4: Graph-Constrained Decomposition Reduces the Effective Decision Space
+
+Graph-constrained decomposition reduces the effective routing decision space even when the total number of entity types is comparable to the number of tools. After one entity type is predicted, graph reachability prunes the valid candidates for the other entity. This structural advantage is independent of the raw type-to-tool ratio and independent of the underlying language model.
+
+Key metric: `entity_pruning = 1 - (reachable_sources / total_entity_types)`. Measured at 56–87% across 5 domains (140 queries). See `docs/graph_constraint.md`.
+
+## H5: Routing Performance Decomposes Into Type Prediction and Graph Reachability
 
 End-to-end routing accuracy can be explained as the product of type prediction accuracy and graph path coverage, providing an interpretable diagnostic for failure analysis.
 
@@ -355,11 +363,13 @@ Metrics: Path found rate, Tool precision, Tool recall, Tool F1.
 
 This isolates the "graph reachability" component of the decomposition.
 
-## 7.7 Entity Types vs Tools
+## 7.7 Graph-Constrained Decision Space
 
-Analyze why entity prediction works even when the type count is close to the tool count.
+Analyze how graph reachability reduces the effective decision space for entity prediction, even when the type count is close to the tool count.
 
-Multiple tools map to the same entity relationships. Entity types are more semantically distinct and stable than tool names, making classification more reliable.
+Per-query entity pruning statistics across all domains. CI/CD as case study: 51 types ≈ 54 tools, yet 87% average entity pruning (76–98% range). The graph constraint is a structural property independent of the LLM.
+
+This section connects the graph constraint to why the reverse strategy outperforms forward: reverse BFS after target prediction yields highly constrained source candidates.
 
 
 
@@ -468,18 +478,14 @@ Fine-tuned models for entity type prediction.
 
 # 12. Conclusion
 
-We propose a reformulation of tool routing as an entity reasoning problem.
+We propose that tool routing can be decomposed into a sequence of graph-constrained entity prediction problems.
 
-Instead of directly selecting tools, the model predicts source and target entity types and recovers executable workflows through graph search.
+Instead of selecting tools directly from a large catalog, the model predicts entity types while the graph constrains each decision step. Graph reachability reduces the effective decision space by 56–87% across domains — a structural property independent of the underlying language model.
 
-Our results suggest that routing performance can largely be explained by two components:
+End-to-end routing performance decomposes cleanly into two factors:
 
 ```text
-Tool Routing
-=
-Entity Classification
-+
-Graph Reachability
+Recall_e2e = P(types correct) × Recall_graph + P(types wrong) × Recall_wrong
 ```
 
-This decomposition provides a scalable, interpretable, and extensible foundation for tool routing in large tool ecosystems.
+This decomposition separates model quality from graph robustness, providing interpretable diagnostics for failure analysis and a principled path for improving either component independently.

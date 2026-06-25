@@ -17,7 +17,26 @@ MODELS = {
         "env_key": "SANDBOX_API_KEY_QWEN3",
         "extra_params": {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
     },
-
+    "claude-haiku": {
+        "litellm_model": "vertex/claude-haiku-4-5@20251001",
+        "api_base": "https://claude--apicast-production.apps.int.stc.ai.prod.us-east-1.aws.paas.redhat.com:443",
+        "env_key": "SANDBOX_API_KEY_CLAUDE",
+        "extra_params": {},
+        "custom_handler": "vertex_anthropic",
+        "vertex_path": "haiku",
+    },
+    "granite-4-1-8b": {
+        "litellm_model": "openai/ibm-granite/granite-4.1-8b",
+        "api_base": "https://granite-4-1-8b--apicast-production.apps.int.stc.ai.prod.us-east-1.aws.paas.redhat.com:443/v1",
+        "env_key": "SANDBOX_API_KEY_GRANITE41",
+        "extra_params": {},
+    },
+    "gpt-oss-20b": {
+        "litellm_model": "openai/openai/gpt-oss-20b",
+        "api_base": "https://gpt-oss-20b--apicast-production.apps.int.stc.ai.prod.us-east-1.aws.paas.redhat.com:443/v1",
+        "env_key": "SANDBOX_API_KEY_GPTOSS",
+        "extra_params": {},
+    },
 }
 
 EMBED_CONFIG = {
