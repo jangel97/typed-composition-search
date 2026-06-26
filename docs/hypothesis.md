@@ -13,9 +13,9 @@ Can graph-constrained entity reasoning provide a better formulation for tool rou
 Semantic reasoning and compositional reasoning are distinct problems and
 should be handled by different computational mechanisms.
 
-LLMs are well suited for semantic entity prediction — understanding what a
+LLMs are well suited for semantic entity prediction - understanding what a
 user's query is about. Graph search is well suited for deterministic
-composition — finding which tools connect the predicted entities.
+composition - finding which tools connect the predicted entities.
 
 Combining both yields a system where each component operates at the
 abstraction level it was designed for: language models reason about meaning,
@@ -165,11 +165,21 @@ contribution of real API structure. (Planned for future work.)
 
 ---
 
-# Null Hypothesis
+# Null Hypotheses
 
-There is no significant difference between entity-based graph routing,
-retrieval-based routing, and direct tool selection. Any observed performance
-differences are attributable to chance.
+Each hypothesis has a corresponding null:
+
+**H0₁ (Decomposition):** Entity-type prediction followed by graph search
+does not produce valid tool compositions — routing accuracy is no better
+than direct tool selection or retrieval-based routing.
+
+**H0₂ (Decision Space):** Graph reachability does not reduce the effective
+decision space. The number of valid source candidates after target prediction
+is not significantly smaller than the total number of entity types.
+
+**H0₃ (Performance Decomposition):** End-to-end routing accuracy is not
+explained by the product of type prediction accuracy and graph reachability.
+The decomposition formula does not predict actual recall.
 
 ---
 

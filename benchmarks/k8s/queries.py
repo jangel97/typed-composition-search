@@ -8,7 +8,7 @@ QUERIES = [
         "query": "Get the logs for pods running the nginx deployment in the production namespace",
         "source_type": "Namespace",
         "target_type": "PodLogs",
-        "expected_tools": ["list_deployments", "select_deployment", "get_deployment_pods", "select_pod", "get_pod_logs"],
+        "expected_tools": ["list_pods", "select_pod", "get_pod_logs"],
     },
     {
         "id": "pod_events",
@@ -171,8 +171,8 @@ QUERIES = [
         "category": "synonym",
         "query": "How many replicas does the auth workload have?",
         "source_type": "Deployment",
-        "target_type": "ReplicaSet",
-        "expected_tools": ["get_replicasets"],
+        "target_type": "HPA",
+        "expected_tools": ["get_deployment_hpa"],
     },
     {
         "id": "synonym_scaling",
@@ -216,6 +216,6 @@ QUERIES = [
         "query": "Users are complaining the app is slow. Can you check if the nodes are overloaded?",
         "source_type": "Namespace",
         "target_type": "NodeMetrics",
-        "expected_tools": [],
+        "expected_tools": ["list_pods", "select_pod", "get_pod_node", "get_node_metrics"],
     },
 ]

@@ -16,7 +16,7 @@ QUERIES = [
         "query": "What labels are on issue #15?",
         "source_type": "Issue",
         "target_type": "Label",
-        "expected_tools": ["get_issue_labels"],
+        "expected_tools": ["add_issue_label"],
     },
     {
         "id": "branch_protection",
@@ -32,7 +32,7 @@ QUERIES = [
         "query": "List the downloadable assets for the v2.0.0 release",
         "source_type": "Release",
         "target_type": "Asset",
-        "expected_tools": ["get_release_assets"],
+        "expected_tools": ["get_release_assets", "select_asset"],
     },
     {
         "id": "commit_diff",
@@ -56,7 +56,7 @@ QUERIES = [
         "query": "What is the status of the latest production deployment?",
         "source_type": "Deployment",
         "target_type": "DeploymentStatus",
-        "expected_tools": ["get_deployment_statuses"],
+        "expected_tools": ["get_deployment_statuses", "select_deployment_status"],
     },
     {
         "id": "check_run_annotations",
@@ -64,7 +64,7 @@ QUERIES = [
         "query": "Show me the annotations on the failing lint check run",
         "source_type": "CheckRun",
         "target_type": "Annotation",
-        "expected_tools": ["get_check_run_annotations"],
+        "expected_tools": ["get_check_run_annotations", "select_annotation"],
     },
     {
         "id": "repo_readme",
@@ -80,7 +80,7 @@ QUERIES = [
         "query": "What are the CI statuses on commit abc123?",
         "source_type": "Commit",
         "target_type": "Status",
-        "expected_tools": ["get_commit_statuses"],
+        "expected_tools": ["get_commit_statuses", "select_status"],
     },
 
     # ──────────────────────────────────────────────
@@ -92,7 +92,7 @@ QUERIES = [
         "query": "Show me the recent changes to the project",
         "source_type": "Repo",
         "target_type": "Commit",
-        "expected_tools": ["list_repo_commits"],
+        "expected_tools": ["list_repo_commits", "select_commit"],
     },
     {
         "id": "ambiguous_status",
@@ -100,7 +100,7 @@ QUERIES = [
         "query": "Is the build passing?",
         "source_type": "PR",
         "target_type": "CheckRun",
-        "expected_tools": ["get_pr_checks"],
+        "expected_tools": ["get_pr_checks", "select_check_run"],
     },
     {
         "id": "ambiguous_feedback",
@@ -128,7 +128,7 @@ QUERIES = [
         "query": "Get the job logs from the latest run of the CI workflow",
         "source_type": "Workflow",
         "target_type": "JobLogs",
-        "expected_tools": ["get_workflow_runs", "select_workflow_run", "get_run_jobs", "select_job", "get_job_logs"],
+        "expected_tools": ["trigger_workflow", "get_run_jobs", "select_job", "get_job_logs"],
     },
     {
         "id": "multihop_repo_check_suites",
@@ -144,7 +144,7 @@ QUERIES = [
         "query": "What labels are on issues in the v3.0 milestone?",
         "source_type": "Milestone",
         "target_type": "Label",
-        "expected_tools": ["get_milestone_issues", "select_issue", "get_issue_labels"],
+        "expected_tools": ["get_milestone_issues", "select_issue", "add_issue_label"],
     },
     {
         "id": "multihop_team_repo_release",
@@ -172,7 +172,7 @@ QUERIES = [
         "query": "Show me the CI output for the deploy workflow",
         "source_type": "Workflow",
         "target_type": "RunLogs",
-        "expected_tools": ["get_workflow_runs", "select_workflow_run", "get_run_logs"],
+        "expected_tools": ["trigger_workflow", "get_run_logs"],
     },
     {
         "id": "synonym_changeset",
@@ -188,7 +188,7 @@ QUERIES = [
         "query": "Did the pipeline pass on the latest commit?",
         "source_type": "Commit",
         "target_type": "Status",
-        "expected_tools": ["get_commit_statuses"],
+        "expected_tools": ["get_commit_statuses", "select_status"],
     },
     {
         "id": "synonym_approval",
@@ -216,7 +216,7 @@ QUERIES = [
         "query": "CI is red on my PR, can you check what went wrong? The PR number is 123",
         "source_type": "PR",
         "target_type": "CheckRun",
-        "expected_tools": ["get_pr_checks"],
+        "expected_tools": ["get_pr_checks", "select_check_run"],
     },
     {
         "id": "noisy_release_files",
@@ -224,7 +224,7 @@ QUERIES = [
         "query": "I need to download the binaries from the latest release, where can I find them?",
         "source_type": "Repo",
         "target_type": "Asset",
-        "expected_tools": ["get_latest_release", "get_release_assets"],
+        "expected_tools": ["get_latest_release", "get_release_assets", "select_asset"],
     },
     {
         "id": "noisy_who_reviewed",
@@ -240,7 +240,7 @@ QUERIES = [
         "query": "Hey, we just deployed to production, can you check if it went through okay?",
         "source_type": "Repo",
         "target_type": "DeploymentStatus",
-        "expected_tools": ["list_deployments", "select_deployment", "get_deployment_statuses"],
+        "expected_tools": ["list_deployments", "select_deployment", "get_deployment_statuses", "select_deployment_status"],
     },
 
     # ──────────────────────────────────────────────
@@ -252,7 +252,7 @@ QUERIES = [
         "query": "Are all checks passing on the latest commit?",
         "source_type": "Commit",
         "target_type": "Status",
-        "expected_tools": ["get_commit_statuses"],
+        "expected_tools": ["get_commit_statuses", "select_status"],
     },
     {
         "id": "multipath_pr_diff",

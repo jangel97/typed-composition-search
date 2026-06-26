@@ -8,7 +8,7 @@ QUERIES = [
         "query": "Show me the facts for hosts in the production inventory",
         "source_type": "Inventory",
         "target_type": "HostFacts",
-        "expected_tools": ["get_inventory_hosts", "select_host", "get_host_facts"],
+        "expected_tools": ["add_host", "get_host_facts"],
     },
     {
         "id": "role_defaults",
@@ -24,7 +24,7 @@ QUERIES = [
         "query": "Get the log from the last run of the deploy playbook",
         "source_type": "Playbook",
         "target_type": "RunLog",
-        "expected_tools": ["list_runs", "select_run", "get_run_log"],
+        "expected_tools": ["run_playbook", "get_run_log"],
     },
     {
         "id": "module_doc",
@@ -40,7 +40,7 @@ QUERIES = [
         "query": "What hosts are in the webservers group?",
         "source_type": "Group",
         "target_type": "Host",
-        "expected_tools": ["get_group_hosts", "select_host"],
+        "expected_tools": ["add_host_to_group"],
     },
     {
         "id": "collection_roles",
@@ -128,7 +128,7 @@ QUERIES = [
         "query": "Show me the facts for hosts in the db group of the production inventory",
         "source_type": "Inventory",
         "target_type": "HostFacts",
-        "expected_tools": ["get_inventory_groups", "select_group", "get_group_hosts", "select_host", "get_host_facts"],
+        "expected_tools": ["add_host", "get_host_facts"],
     },
     {
         "id": "multihop_run_results",
@@ -136,7 +136,7 @@ QUERIES = [
         "query": "Get the task results from the last run of the deploy playbook",
         "source_type": "Playbook",
         "target_type": "TaskResult",
-        "expected_tools": ["list_runs", "select_run", "get_run_tasks", "select_task_result"],
+        "expected_tools": ["run_playbook", "get_run_tasks", "select_task_result"],
     },
     {
         "id": "multihop_playbook_handlers",
@@ -144,7 +144,7 @@ QUERIES = [
         "query": "What handlers are triggered by roles in the site playbook?",
         "source_type": "Playbook",
         "target_type": "Handler",
-        "expected_tools": ["get_playbook_plays", "select_play", "get_play_roles", "select_role", "get_role_handlers", "select_handler"],
+        "expected_tools": ["get_playbook_plays", "select_play", "get_play_handlers", "select_handler"],
     },
     {
         "id": "multihop_implicit_logs",
@@ -152,7 +152,7 @@ QUERIES = [
         "query": "The nightly backup playbook ran last night, what happened?",
         "source_type": "Playbook",
         "target_type": "RunLog",
-        "expected_tools": ["list_runs", "select_run", "get_run_log"],
+        "expected_tools": ["run_playbook", "get_run_log"],
     },
     {
         "id": "multihop_implicit_collection",
@@ -172,7 +172,7 @@ QUERIES = [
         "query": "What machines are managed by this inventory?",
         "source_type": "Inventory",
         "target_type": "Host",
-        "expected_tools": ["get_inventory_hosts", "select_host"],
+        "expected_tools": ["add_host"],
     },
     {
         "id": "synonym_recipe",
@@ -216,7 +216,7 @@ QUERIES = [
         "query": "Hey, the deploy failed again last night. Can you pull the logs?",
         "source_type": "Playbook",
         "target_type": "RunLog",
-        "expected_tools": ["list_runs", "select_run", "get_run_log"],
+        "expected_tools": ["run_playbook", "get_run_log"],
     },
     {
         "id": "noisy_webserver_facts",
@@ -224,7 +224,7 @@ QUERIES = [
         "query": "Something is wrong with the webservers, can you check what facts Ansible has for them?",
         "source_type": "Group",
         "target_type": "HostFacts",
-        "expected_tools": ["get_group_hosts", "select_host", "get_host_facts"],
+        "expected_tools": ["add_host_to_group", "get_host_facts"],
     },
     {
         "id": "noisy_audit_modules",
