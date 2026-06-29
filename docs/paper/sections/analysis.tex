@@ -17,10 +17,16 @@ Across all model--domain combinations, we observe 50 query instances where the b
 Inspection shows that all regressions originate from incorrect source or target entity predictions.
 When type prediction fails, graph search either finds no valid path or follows a path corresponding to the wrong entity types.
 
-This behavior reflects a conservative failure mode rather than a compositional failure.
-Instead of producing structurally invalid tool sequences, graph routing abstains from execution when the predicted entity types cannot support the desired workflow.
+This behavior reflects a shift in error profile rather than simply fewer errors.
+The baseline produces both false positives (hallucinated tools, incorrect selections, invalid compositions) and false negatives (missing required tools).
+Graph routing structurally eliminates hallucinated tools and invalid compositions; the remaining false positives arise only from valid-but-wrong graph paths caused by incorrect entity predictions.
+False negatives are similarly concentrated: they occur when incorrect type predictions lead to no valid path or to a path that omits required tools.
 
-Whether this tradeoff is desirable depends on the application.
+This shift is reflected in the aggregate metrics.
+Average precision increases from 0.48 (baseline) to 0.88 (graph), an 83\% relative improvement, while average recall increases more modestly from 0.67 to 0.83.
+These results are consistent with graph routing substantially reducing false positives---an expected consequence of constraining outputs to valid graph paths---while also improving recall through the structured decomposition of the routing task.
+
+Whether the conservative failure mode is desirable depends on the application.
 In safety-critical domains such as infrastructure automation or financial systems, returning no tool sequence may be preferable to invoking incorrect tools.
 Applications emphasizing exploration or recall may instead tolerate structurally invalid suggestions in exchange for higher coverage.
 
@@ -50,20 +56,14 @@ The type prediction accuracies reported in Table~\ref{tab:type-prediction} refle
 
 Graph search transforms semantic predictions into executable workflows.
 Rather than considering arbitrary tool combinations, graph search explores only compositionally valid paths in the typed composition graph connecting the predicted entity types.
-The effective decision space is therefore reduced from the entire tool catalog to the small set of tools lying on valid graph paths.
-In practice, each query exposes only 1.4--2.0 candidate tools instead of the full registry of 54--170 tools.
-The entity pruning statistics in Table~\ref{tab:entity-pruning} quantify this reduction per domain.
+In practice, each query exposes only 1.4--2.0 candidate tools instead of the full registry of 54--170 tools (Table~\ref{tab:entity-pruning}).
+Beyond reducing the decision space, graph topology also provides fault tolerance: when type predictions are incorrect, richer graph connectivity allows partial recovery of the correct workflow (Section~\ref{sec:fault-tolerance}).
 
 \paragraph{Execution Guarantees.}
 
-Every workflow returned by graph routing is compositionally valid by construction.
-Adjacent tools always compose because graph edges encode compatible input and output entity types.
+Every workflow returned by graph routing is compositionally valid by construction (Proposition~1).
 Consequently, graph routing cannot hallucinate tool invocations outside the registered tool graph.
-Table~\ref{tab:hallucinations} confirms this: graph-constrained strategies produce zero hallucinated tools across all model--domain combinations, while the baseline does not.
-
-Taken together, these mechanisms provide a plausible explanation for the observed improvements.
-Semantic reasoning is performed by the language model through entity prediction, structural reasoning is delegated to graph search, and execution is limited to compositionally valid workflows.
-Rather than reasoning directly over the complete tool catalog, the model reasons over entity types while the graph enforces workflow validity.
+Table~\ref{tab:hallucinations} confirms this across all model--domain combinations.
 
 \subsection{Fault Tolerance}
 \label{sec:fault-tolerance}
@@ -73,8 +73,19 @@ Across all model--domain combinations, $R_{\text{wrong}}$ remains consistently a
 
 This behavior emerges naturally from graph topology.
 Neighboring entity types often share downstream paths, allowing graph search initiated from an incorrect but nearby entity to traverse portions of the same workflow.
-Domains with richer local connectivity therefore exhibit greater resilience to prediction errors than sparser domains.
-For example, GitHub achieves an average $R_{\text{wrong}}$ of 0.48, substantially higher than less connected domains.
 
-Robustness therefore depends not only on entity prediction accuracy but also on graph topology.
-Improving the organization of the typed composition graph can increase error tolerance even without improving the underlying language model.
+To quantify this relationship, we measure the average number of entity types that can reach a given target through valid graph paths (average reverse reachability).
+This metric captures local connectivity: domains where more source types connect to each target provide more opportunities for partial recovery under wrong predictions.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/scatter_reachability_vs_rwrong.pdf}
+\caption{Graph reachability (average reachable sources per target) vs.\ $R_{\text{wrong}}$ across all 20 model--domain combinations. Pearson $r = 0.68$, $p = 0.001$, $R^2 = 0.46$. Domains with richer connectivity exhibit greater fault tolerance. Colors indicate domains; marker shapes indicate models.}
+\label{fig:reachability-vs-rwrong}
+\end{figure}
+
+Figure~\ref{fig:reachability-vs-rwrong} confirms a strong positive correlation between graph reachability and $R_{\text{wrong}}$ (Pearson $r = 0.68$, $p = 0.001$, $R^2 = 0.46$).
+GitHub, the most connected domain (10.2 reachable sources per target), achieves the highest average $R_{\text{wrong}}$ (0.48), while Kubernetes, the sparsest (3.4), achieves the lowest (0.18).
+This correlation holds across all four models, indicating that fault tolerance is a property of the graph rather than of any particular language model.
+
+Together with the type prediction correlation reported in Section~\ref{sec:recall-decomposition}, these results provide complementary evidence for the two factors identified by the recall decomposition: entity prediction quality determines how often the correct path is found ($r = 0.71$ with F1), while graph topology determines how much is recovered when it is not ($r = 0.68$ with $R_{\text{wrong}}$).

@@ -60,6 +60,19 @@ The gap between predicted recall $\hat{R}$ and actual recall $R_{\text{actual}}$
 
 Rather than treating routing performance as a single opaque metric, the decomposition identifies where improvements should be directed: type prediction for the LLM, and graph coverage for the typed composition graph.
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/scatter_type_prediction_vs_f1.pdf}
+\caption{Entity type prediction accuracy (exact match on both source and target types) vs.\ end-to-end routing F1 across all 20 model--domain combinations. Pearson $r = 0.71$, $p < 0.001$, $R^2 = 0.50$. Each marker shape represents a model; the regression line shows a strong positive relationship.}
+\label{fig:type-vs-f1}
+\end{figure}
+
+Figure~\ref{fig:type-vs-f1} provides direct evidence for this relationship.
+Across all 20 model--domain combinations, exact-match type prediction accuracy correlates strongly with end-to-end F1 (Pearson $r = 0.71$, $p < 0.001$, $R^2 = 0.50$).
+Entity prediction quality is a strong predictor of end-to-end routing performance ($r = 0.71$, $p < 0.001$), explaining approximately half of the observed variance in routing F1.
+This provides strong empirical support for H3 and confirms that semantic prediction quality is a major determinant of routing performance.
+The remaining unexplained variance suggests that additional factors---including graph structure and domain characteristics---also contribute to end-to-end performance.
+
 \paragraph{Graceful degradation.}
 The decomposition also reveals that performance does not collapse when type prediction is wrong.
 $R_{\text{wrong}}$ averages 0.292 across all combinations (range: 0.10--0.65), meaning incorrect type predictions still recover some of the correct tool chain rather than producing zero recall.

@@ -5,7 +5,8 @@ We introduced Typed Composition Routing, a reformulation of tool routing as type
 Instead of requiring language models to reason over large tool catalogs, our approach separates semantic reasoning from compositional reasoning: the LLM predicts entity types, while deterministic graph search recovers executable tool sequences.
 
 Across five domains and four language models, this formulation consistently outperforms direct tool selection, improving F1 in all 20 model--domain combinations while eliminating hallucinated tool invocations as a structural property of the graph.
-The proposed recall decomposition further shows that end-to-end routing performance can be understood through two independent factors---entity type prediction and graph recoverability---providing a simple analytical framework for studying graph-constrained tool routing.
+The proposed recall decomposition reveals two complementary factors underlying routing performance: semantic prediction quality determines whether the correct entity types are identified, while graph topology shapes the degree of structural recovery after imperfect predictions.
+These two factors provide distinct, actionable levers for improving graph-constrained routing.
 
 More broadly, our results suggest that tool routing need not be formulated as direct prediction over tools.
 Reasoning over typed entities while delegating composition to graph algorithms provides a simpler, more reliable, and more interpretable alternative that scales naturally to large tool ecosystems without additional training.
