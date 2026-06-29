@@ -11,7 +11,7 @@ ToolBench~\cite{xu2023toolbench} and API-Bank~\cite{li2023apibank} provide evalu
 TaskBench~\cite{shen2023taskbench} introduces a tool graph for benchmark generation, though the graph is used to construct evaluation data rather than for runtime routing.
 
 These approaches reason directly over tools, framing routing as a retrieval or classification problem in the tool space.
-In contrast, Typed Composition Search shifts semantic prediction from tools to entity types and delegates tool composition to graph search, separating semantic reasoning from structural reasoning rather than requiring the language model to solve both simultaneously.
+In contrast, Typed Composition Routing shifts semantic prediction from tools to entity types and delegates tool composition to graph search, separating semantic reasoning from structural reasoning rather than requiring the language model to solve both simultaneously.
 
 \paragraph{Graph-Constrained Tool Planning.}
 
@@ -20,19 +20,19 @@ ControlLLM~\cite{zhang2024controlllm} constructs a tool dependency graph and sea
 PLaG~\cite{lin2024plag} serializes task graphs into prompts to guide language models during planning.
 
 Our approach differs in both objective and complexity.
-Rather than performing task decomposition, scheduling, or workflow optimization, Typed Composition Search performs only two steps: entity type prediction followed by deterministic graph search over a typed composition graph.
+Rather than performing task decomposition, scheduling, or workflow optimization, Typed Composition Routing performs only two steps: entity type prediction followed by deterministic graph search over a typed composition graph.
 The resulting system is substantially simpler while still providing structural guarantees on tool composition.
 
 Graph-native learning methods such as GNN4Plan~\cite{wang2024gnn4plan}, GRAFT~\cite{li2025graft}, and GAP~\cite{li2025gap} learn graph-aware planning through supervised learning or reinforcement learning.
 These approaches achieve strong planning performance but require task-specific training data and model optimization.
-Typed Composition Search instead operates with off-the-shelf language models and requires no additional training, making it complementary to learned graph planners rather than a replacement.
+Typed Composition Routing instead operates with off-the-shelf language models and requires no additional training, making it complementary to learned graph planners rather than a replacement.
 
 \paragraph{Compositional Reasoning Agents.}
 
 General-purpose agent frameworks such as HuggingGPT~\cite{shen2024hugginggpt}, Chameleon~\cite{lu2024chameleon}, and ReAct~\cite{yao2023react} rely primarily on language-model reasoning to compose multi-step tool invocations.
 While highly flexible, these systems provide no explicit structural guarantees that generated tool sequences are compositionally valid.
 
-Typed Composition Search augments language-model reasoning with an explicit typed graph.
+Typed Composition Routing augments language-model reasoning with an explicit typed graph.
 The language model predicts semantic intent through entity types, while graph search guarantees that every returned workflow satisfies the typing constraints encoded in the graph.
 
 \paragraph{Positioning.}
@@ -41,6 +41,6 @@ Our work occupies a distinct point in the design space.
 
 Retrieval-based approaches require neither graph structure nor training, but provide no compositional guarantees.
 Graph-native learning approaches provide strong structural reasoning but require supervised training or reinforcement learning.
-Typed Composition Search combines structural reasoning with zero additional training by separating semantic prediction from graph-constrained composition.
+Typed Composition Routing combines structural reasoning with zero additional training by separating semantic prediction from graph-constrained composition.
 
 To our knowledge, this is the first work to formulate tool routing as typed entity prediction followed by deterministic graph search, providing structural validity guarantees while remaining compatible with arbitrary off-the-shelf language models.

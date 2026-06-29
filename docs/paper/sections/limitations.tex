@@ -1,7 +1,7 @@
 \section{Limitations}
 \label{sec:limitations}
 
-Typed Composition Search relies on a typed composition graph and deterministic graph search.
+Typed Composition Routing relies on a typed composition graph and deterministic graph search.
 While this formulation provides strong structural guarantees, it also imposes several limitations.
 
 \paragraph{Typed Transformation Assumption.}
@@ -13,7 +13,7 @@ Although such operations can be represented using terminal entity types (e.g., \
 
 \paragraph{Sequential Workflows.}
 
-Typed Composition Search currently recovers a single shortest path using breadth-first search and therefore models sequential workflows only.
+Typed Composition Routing currently recovers a single shortest path using breadth-first search and therefore models sequential workflows only.
 Branching execution, parallel composition, iterative loops, or conditional control flow fall outside the expressiveness of the current formulation.
 Supporting richer workflow structures would require extending the graph representation beyond simple paths.
 
@@ -27,7 +27,7 @@ Future work could incorporate weighted graph search using operation type, execut
 
 \paragraph{Ontology Quality.}
 
-The effectiveness of graph routing depends on the quality of the underlying entity type ontology.
+The effectiveness of graph routing depends on the quality of the underlying entity type system.
 Overly fine-grained ontologies increase the difficulty of entity prediction, whereas overly coarse ontologies weaken graph constraints by introducing unnecessary connectivity.
 Our experiments use manually constructed ontologies designed for each benchmark domain.
 Automatically deriving typed composition graphs from API specifications (e.g., OpenAPI or GraphQL schemas) remains an important direction for future work.

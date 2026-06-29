@@ -40,7 +40,7 @@ The experimental results suggest three complementary mechanisms that explain the
 
 \paragraph{Semantic Reduction.}
 
-Typed Composition Search asks the language model to predict entity types rather than executable tools.
+Typed Composition Routing asks the language model to predict entity types rather than executable tools.
 The prediction problem is therefore expressed over the entity space instead of the tool catalog.
 Entity pruning (Section~\ref{sec:entity-pruning}) further reduces this space by eliminating unreachable source entities once the target type is known.
 Across domains, 56--87\% of entity types are removed before source prediction.
@@ -49,7 +49,7 @@ This reduction is entirely determined by graph topology and is independent of mo
 \paragraph{Structural Reduction.}
 
 Graph search transforms semantic predictions into executable workflows.
-Rather than considering arbitrary tool combinations, breadth-first search explores only compositionally valid paths connecting the predicted entity types.
+Rather than considering arbitrary tool combinations, graph search explores only compositionally valid paths in the typed composition graph connecting the predicted entity types.
 The effective decision space is therefore reduced from the entire tool catalog to the small set of tools lying on valid graph paths.
 In practice, each query exposes only 1.4--2.0 candidate tools instead of the full registry of 54--170 tools.
 

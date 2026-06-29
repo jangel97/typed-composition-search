@@ -1,8 +1,8 @@
-```latex
+
 \section{Experimental Setup}
 \label{sec:experimental-setup}
 
-We evaluate Typed Composition Search (TCS) across multiple domains, language models, and routing strategies to answer three research hypotheses (Section~\ref{sec:hypotheses}). The evaluation is designed to isolate the effects of entity prediction, graph structure, and end-to-end routing performance.
+We evaluate Typed Composition Routing (TCR) across multiple domains, language models, and routing strategies to answer three research hypotheses (Section~\ref{sec:hypotheses}). The evaluation is designed to isolate the effects of entity prediction, graph structure, and end-to-end routing performance.
 
 \subsection{Domains}
 \label{sec:domains}
@@ -38,13 +38,18 @@ We evaluate four language models spanning different architectures and model size
     \item \textbf{Claude Haiku 4.5}
 \end{itemize}
 
-All models are evaluated off-the-shelf without fine-tuning.
-Since TCS requires only entity type prediction, the approach is applicable to any language model capable of natural language understanding, regardless of whether it was specifically trained for tool use.
+All models are evaluated off-the-shelf without fine-tuning and queried with temperature 0, making predictions deterministic across runs.
+Since TCR requires only entity type prediction, the approach is applicable to any language model capable of natural language understanding, regardless of whether it was specifically trained for tool use.
 
 \subsection{Query Dataset}
 \label{sec:query-categories}
 
 The benchmark contains 140 manually curated queries distributed across the five domains (25--30 queries per domain).
+
+Queries were manually authored by the first author for each domain based on realistic operational tasks supported by the corresponding tool registry.
+For each domain, queries were written to cover six predefined routing challenge categories, with category counts chosen to ensure representation of each difficulty type while emphasizing clean queries as a baseline.
+Ground-truth annotations (source type, target type, and expected tool sequence) were manually derived and verified for consistency with the typed composition graph.
+Queries were written individually rather than generated from templates.
 
 Queries are organized into six categories that exercise different routing challenges:
 
@@ -68,12 +73,12 @@ Each query is annotated with
 \subsection{Routing Strategies}
 \label{sec:strategies}
 
-We compare TCS against five alternative routing strategies.
+We compare TCR against five alternative routing strategies.
 
 \begin{enumerate}
     \item \textbf{Baseline}: direct tool selection from the complete tool catalog.
     \item \textbf{Retrieval}: embedding-based retrieval selects the top-$k$ candidate tools before tool selection.
-    \item \textbf{Graph}: Typed Composition Search (ours).
+    \item \textbf{Graph}: Typed Composition Routing (ours).
     \item \textbf{Graph-Reverse}: target-first graph routing with probability-based source selection using multiple model completions.
     \item \textbf{Oracle}: graph search using ground-truth entity types, providing an upper bound on graph routing performance.
     \item \textbf{Model-Types}: entity prediction only, without graph search, isolating type prediction quality.
@@ -107,9 +112,8 @@ The experiments are designed to test three hypotheses.
 Reformulating tool routing as entity prediction followed by graph search improves end-to-end routing performance compared to direct tool selection across models and domains.
 
 \paragraph{H2 (Graph-Constrained Decision Space).}
-The primary benefit of Typed Composition Search arises from graph constraints rather than label-space reduction.
+The primary benefit of Typed Composition Routing arises from graph constraints rather than label-space reduction.
 We quantify graph constraints using the entity pruning metric (Eq.~\ref{eq:entity-pruning}) and evaluate whether stronger graph pruning correlates with larger routing improvements.
 
 \paragraph{H3 (Performance Decomposition).}
 End-to-end routing performance decomposes into language model type prediction quality and graph reachability (Eq.~\ref{eq:recall-decomposition}), enabling routing errors to be attributed independently to semantic prediction or graph structure.
-```

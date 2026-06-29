@@ -1,11 +1,10 @@
-```latex
+
 \begin{abstract}
 
 As Large Language Model (LLM) agents integrate with increasingly large tool ecosystems, tool routing---determining which tools should be invoked to satisfy a user query---becomes a challenging reasoning problem. Existing approaches formulate routing as direct tool selection, requiring the model to simultaneously identify relevant tools, infer valid multi-step compositions, and ensure that the resulting tool sequence is executable. We argue that this is the wrong abstraction.
 
-We propose \textbf{Typed Composition Search}, which reformulates tool routing by separating semantic reasoning from compositional reasoning. Instead of selecting executable tools directly, the LLM predicts source and target entity types, while graph search deterministically recovers valid tool compositions from a typed transformation graph. This decomposition shifts the LLM's role from tool selection to entity classification, delegating composition to the graph.
+We propose \textbf{Typed Composition Routing}, which reformulates tool routing by separating semantic reasoning from compositional reasoning. Instead of selecting executable tools directly, the LLM predicts source and target entity types, while graph search deterministically recovers valid tool compositions from a typed transformation graph. This decomposition shifts the LLM's role from tool selection to entity classification, delegating composition to the graph.
 
-We evaluate the proposed formulation across four language models (8B--20B parameters plus one proprietary model), five tool domains containing 54--170 tools, and 140 benchmark queries spanning multiple routing difficulty categories. Typed Composition Search consistently outperforms direct tool selection across all evaluated model--domain combinations (average $\Delta$F1 = +0.32) while constraining every recovered tool chain to valid graph paths. We further show that end-to-end routing performance decomposes into entity prediction accuracy and graph reachability, providing a simple analytical explanation of routing behavior and enabling targeted failure analysis. The proposed approach requires neither training nor fine-tuning.
+We evaluate the proposed formulation across four language models (8B--20B parameters plus one proprietary model), five tool domains containing 54--170 tools, and 140 benchmark queries spanning multiple routing difficulty categories. Typed Composition Routing consistently outperforms direct tool selection across all evaluated model--domain combinations (average $\Delta$F1 = +0.32) while constraining every recovered tool chain to valid graph paths. We further show that end-to-end routing performance decomposes into entity prediction accuracy and graph reachability, providing a simple analytical explanation of routing behavior and enabling targeted failure analysis. The proposed approach requires neither training nor fine-tuning.
 
 \end{abstract}
-```

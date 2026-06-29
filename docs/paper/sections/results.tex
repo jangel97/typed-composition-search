@@ -8,7 +8,9 @@ Table~\ref{tab:main-results} presents the primary comparison between baseline (d
 
 \input{figures/table_main_results}
 
-Graph routing improves F1 in every model--domain combination (20/20, average $\Delta$F1 = +0.323), indicating that the benefit is consistent across both models and domains rather than being driven by a particular benchmark configuration.
+Graph routing improves aggregate F1 in every model--domain combination (20/20, average $\Delta$F1 = +0.323), indicating that the benefit is consistent across both models and domains rather than being driven by a particular benchmark configuration.
+A pooled Wilcoxon signed-rank test over all 560 query-level paired comparisons confirms that the improvement is statistically significant ($p < 10^{-30}$; bootstrap 95\% CI on mean $\Delta$F1: $[+0.27, +0.37]$).
+At the individual combination level, 15 of the 20 model--domain comparisons reach significance at $p < 0.05$; the five non-significant comparisons correspond to the four CI/CD combinations and one Shopify combination, where baseline performance is already strongest and per-query effect sizes are smallest.
 The largest gains appear where baseline performance is weakest (Ansible: +0.34 to +0.47, GitHub: +0.25 to +0.54), suggesting that graph constraints are most valuable when unconstrained tool selection is hardest.
 
 Table~\ref{tab:strategy-comparison} compares all six routing strategies.
@@ -17,7 +19,7 @@ Retrieval reduces the search space by filtering semantically similar tools, but 
 The retrieved tools may be individually relevant but not necessarily composable into a valid workflow, which is precisely the problem that the typed graph addresses.
 
 The oracle strategy (graph search with ground-truth entity types) achieves F1 = 1.000 across all five domains.
-Crucially, it confirms that the typed composition graph has complete coverage, that every benchmark workflow is representable as a graph path, and that all remaining routing errors originate from entity type prediction rather than from limitations of the graph structure itself.
+This result confirms that the typed composition graph has complete coverage, that every benchmark workflow is representable as a graph path, and that all remaining routing errors originate from entity type prediction rather than from limitations of the graph structure itself.
 
 \input{figures/table_strategy_comparison}
 
@@ -43,9 +45,9 @@ Table~\ref{tab:recall-decomposition} presents the recall decomposition from Eq.~
 \input{figures/table_recall_decomposition}
 
 The decomposition separates end-to-end routing performance into two independent factors: semantic prediction quality (whether the LLM identifies the correct entity types) and graph recoverability (whether the graph contains a valid path between those types).
-The gap between predicted recall $\hat{R}$ and actual recall $R_{\text{actual}}$ has a median of 0.14 across all combinations, suggesting that these two factors explain most of the observed routing behavior.
+The gap between predicted recall $\hat{R}$ and actual recall $R_{\text{actual}}$ has a median of 0.14 across all combinations, suggesting that these two factors capture a substantial portion of the observed routing behavior.
 
-Rather than treating routing performance as a single opaque metric, the decomposition identifies where improvements should be directed: type prediction for the LLM, and graph coverage for the ontology.
+Rather than treating routing performance as a single opaque metric, the decomposition identifies where improvements should be directed: type prediction for the LLM, and graph coverage for the typed composition graph.
 
 \paragraph{Graceful degradation.}
 The decomposition also reveals that performance does not collapse when type prediction is wrong.
@@ -63,7 +65,7 @@ Densely connected regions of the graph provide more opportunities for partial re
 
 Table~\ref{tab:type-prediction} reports type prediction accuracy by query category.
 Source prediction (0.70 overall accuracy) is harder than target prediction (0.80).
-Users describe desired \emph{outcomes} (targets) more clearly than \emph{starting points} (sources), consistent with the semantic reasoning role assigned to the LLM in our formulation.
+This is consistent with the intuition that users describe desired \emph{outcomes} (targets) more clearly than \emph{starting points} (sources), aligning with the semantic reasoning role assigned to the LLM in our formulation.
 
 Clean queries achieve 81\% exact match, while ambiguous queries are hardest (25\%), since the target entity type is genuinely uncertain for these queries.
 Synonym queries show reduced target accuracy (0.61); alternative terminology sometimes maps to the wrong entity type.
@@ -80,7 +82,7 @@ The median pruning across all domains is 75\%, meaning that for a typical query,
 
 CI/CD provides the clearest evidence for H2: with 51 types for 54 tools (near-parity), the type space offers almost no label reduction, yet entity pruning averages 87\% with a minimum of 76\%.
 Even the hardest query in CI/CD constrains the source prediction to at most 12 out of 51 candidates.
-The benefit of Typed Composition Search therefore derives from graph topology rather than from reducing the number of prediction labels.
+The benefit of Typed Composition Routing therefore derives from graph topology rather than from reducing the number of prediction labels.
 
 Entity pruning is a graph-topological property, independent of the language model.
 It applies to any model performing type prediction.

@@ -1,7 +1,7 @@
 \section{Method}
 \label{sec:method}
 
-We propose \emph{Typed Composition Search (TCS)}, a formulation of tool routing that separates semantic reasoning from compositional reasoning.
+We propose \emph{Typed Composition Routing (TCR)}, a formulation of tool routing that separates semantic reasoning from compositional reasoning.
 Instead of predicting executable tools directly, a language model predicts the entity types involved in a query, while deterministic graph search recovers a valid tool composition.
 LLMs perform semantic reasoning over entity types; graph search performs compositional reasoning over valid transformations.
 
@@ -82,7 +82,7 @@ The corresponding tool sequence emerges directly from graph connectivity rather 
 The graph is constructed once from the typed tool registry and is independent of the language model.
 No training, fine-tuning, embeddings, or learned routing policies are required.
 
-\subsection{Typed Composition Search}
+\subsection{Typed Composition Routing}
 \label{sec:tcs}
 
 Routing is decomposed into two independent stages.

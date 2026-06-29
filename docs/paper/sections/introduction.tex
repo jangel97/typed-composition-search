@@ -1,4 +1,4 @@
-```latex
+
 \section{Introduction}
 \label{sec:introduction}
 
@@ -64,13 +64,13 @@ Treating both problems as a single prediction forces the LLM to reason simultane
 (4.2,0.5) -- (4.2,-4.5);
 
 % --------------------------------------------------------------------
-% Typed Composition Search
+% Typed Composition Routing
 % --------------------------------------------------------------------
 
 \node[
     font=\small\bfseries,
     right=5.5cm of trad-title
-] (our-title) {Typed Composition Search};
+] (our-title) {Typed Composition Routing};
 
 \node[box, below=0.4cm of our-title, fill=blue!8] (query2) {Query};
 
@@ -116,15 +116,15 @@ Valid tool chain
 
 \caption{
 \textbf{Left:} Traditional tool routing selects tools from the full catalog in a single unconstrained reasoning step.
-\textbf{Right:} Typed Composition Search separates semantic reasoning (entity type prediction, performed by the LLM) from compositional reasoning (tool path recovery, performed by graph search). Tool chains are recovered only from valid paths in the typed graph, guaranteeing compositional validity. Consequently, end-to-end errors primarily arise from entity type prediction rather than unconstrained tool selection.
+\textbf{Right:} Typed Composition Routing separates semantic reasoning (entity type prediction, performed by the LLM) from compositional reasoning (tool path recovery, performed by graph search). Tool chains are recovered only from valid paths in the typed graph, guaranteeing compositional validity. Consequently, end-to-end errors primarily arise from entity type prediction rather than unconstrained tool selection.
 }
 
 \label{fig:approach}
 \end{figure*}
 
-We propose \textbf{Typed Composition Search}, a reformulation of tool routing that explicitly separates these two reasoning problems (Figure~\ref{fig:approach}). Tools are modeled as typed transformations between entity types (e.g., \texttt{get\_pod\_logs}: \texttt{Pod} $\rightarrow$ \texttt{PodLogs}), forming a directed graph where entity types are nodes and tools are edges. Given a user query, the LLM predicts the source and target entity types, after which graph search deterministically recovers the corresponding tool composition.
+We propose \textbf{Typed Composition Routing}, a reformulation of tool routing that explicitly separates these two reasoning problems (Figure~\ref{fig:approach}). Tools are modeled as typed transformations between entity types (e.g., \texttt{get\_pod\_logs}: \texttt{Pod} $\rightarrow$ \texttt{PodLogs}), forming a directed graph where entity types are nodes and tools are edges. Given a user query, the LLM predicts the source and target entity types, after which graph search deterministically recovers the corresponding tool composition.
 
-This decomposition shifts the LLM from selecting executable tools to predicting semantic entities, while delegating composition to a deterministic graph algorithm. Rather than asking the model to discover valid workflows directly, Typed Composition Search asks it to identify the entities involved, allowing the graph to recover the execution path.
+This decomposition shifts the LLM from selecting executable tools to predicting semantic entities, while delegating composition to a deterministic graph algorithm. Rather than asking the model to discover valid workflows directly, Typed Composition Routing asks it to identify the entities involved, allowing the graph to recover the execution path.
 
 We evaluate the proposed formulation across multiple language models, tool ecosystems, and routing strategies spanning a diverse collection of enterprise domains. Our experiments demonstrate consistent improvements over direct tool selection while providing a simple analytical decomposition that explains end-to-end routing performance in terms of entity prediction accuracy and graph resolution.
 
@@ -145,6 +145,6 @@ We show that end-to-end routing recall decomposes into entity prediction accurac
 We evaluate four language models across five tool domains, six routing strategies, and 140 benchmark queries covering multiple routing difficulty categories.
 
 \item \textbf{Empirical validation.}
-We demonstrate that Typed Composition Search consistently improves routing performance while constraining all recovered tool chains to valid graph paths.
+We demonstrate that Typed Composition Routing consistently improves routing performance while constraining all recovered tool chains to valid graph paths.
 
 \end{enumerate}
