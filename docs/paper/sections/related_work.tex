@@ -1,0 +1,32 @@
+\section{Related Work}
+\label{sec:related-work}
+
+\paragraph{Tool Routing and Selection.}
+ToolLLM \cite{qin2023toolllm} and Gorilla \cite{patil2023gorilla} train or fine-tune models to select from large API catalogs.
+Toolformer \cite{schick2024toolformer} teaches models to decide when and how to call tools.
+ToolScope \cite{li2025toolscope} benchmarks embedding-based retrieval for tool routing.
+These approaches treat tool selection as a retrieval or classification problem over the tool space.
+Our work shifts the classification target from tools to entity types and uses graph structure to recover tool sequences.
+
+\paragraph{Graph-Based Tool Planning.}
+PLaG \cite{lin2024plag} serializes a task dependency graph into the LLM prompt for code generation.
+ControlLLM \cite{zhang2024controlllm} is the closest work to ours: it constructs a tool graph and uses search to find valid tool chains for multimodal pipelines.
+However, ControlLLM involves full task decomposition, parallel scheduling, and resource management---substantially more complex than our approach, which uses only type prediction and BFS.
+
+GNN4Plan \cite{wang2024gnn4plan} trains graph neural networks to predict tool sequences, requiring task-specific training data.
+GRAFT \cite{li2025graft} tokenizes graph structure and fine-tunes an LLM on graph-augmented representations.
+Notably, GRAFT reports that constrained graph search achieves ``perfect dependency legality'' but dismisses it due to lower exact match.
+Our work argues that better entity type prediction can close this gap without training.
+
+GAP \cite{li2025gap} combines graph planning with reinforcement learning for tool use.
+These trained approaches achieve strong results but require data collection and fine-tuning.
+Our method works with any off-the-shelf LLM, making it complementary rather than competitive.
+
+\paragraph{Compositional Reasoning.}
+HuggingGPT \cite{shen2024hugginggpt} and Chameleon \cite{lu2024chameleon} compose tools for complex tasks through LLM-driven planning.
+ReAct \cite{yao2023react} interleaves reasoning and acting but does not leverage structural constraints on tool composition.
+Our typed graph provides deterministic composition guarantees that these approaches lack.
+
+\paragraph{Positioning.}
+Our work fills a gap between retrieval-based routing (no structural constraints, no training) and trained graph models (strong constraints, training required).
+Typed Composition Search provides structural constraints---zero hallucinations, guaranteed compositional validity---without any training, making it the simplest structural approach in this space.

@@ -1,0 +1,37 @@
+\begin{table*}[t]
+\centering
+\small
+\begin{tabular}{ll ccc ccc c}
+\toprule
+& & \multicolumn{3}{c}{\textbf{Baseline}} & \multicolumn{3}{c}{\textbf{Graph}} & \\
+\cmidrule(lr){3-5} \cmidrule(lr){6-8}
+\textbf{Model} & \textbf{Domain} & P & R & F1 & P & R & F1 & $\Delta$F1 \\
+\midrule
+Granite-8B & Kubernetes & 0.494 & 0.656 & 0.531 & 0.926 & 0.847 & 0.865 & +0.334 \\
+ & Ansible & 0.274 & 0.510 & 0.340 & 0.828 & 0.827 & 0.808 & +0.468 \\
+ & GitHub & 0.351 & 0.494 & 0.364 & 0.949 & 0.881 & 0.903 & +0.539 \\
+ & CI/CD & 0.431 & 0.705 & 0.507 & 0.900 & 0.733 & 0.789 & +0.282 \\
+ & Shopify & 0.623 & 0.864 & 0.686 & -- & -- & -- & -- \\
+\midrule
+Qwen3-14B & Kubernetes & 0.597 & 0.700 & 0.603 & 0.941 & 0.897 & 0.909 & +0.306 \\
+ & Ansible & 0.359 & 0.515 & 0.406 & 0.729 & 0.694 & 0.707 & +0.301 \\
+ & GitHub & 0.535 & 0.656 & 0.561 & 0.881 & 0.783 & 0.815 & +0.254 \\
+ & CI/CD & 0.491 & 0.625 & 0.515 & 0.870 & 0.875 & 0.844 & +0.330 \\
+ & Shopify & 0.828 & 0.807 & 0.794 & 0.963 & 0.901 & 0.922 & +0.128 \\
+\midrule
+GPT-OSS-20B & Kubernetes & 0.522 & 0.621 & 0.547 & 0.889 & 0.810 & 0.831 & +0.284 \\
+ & Ansible & 0.253 & 0.461 & 0.315 & 0.787 & 0.743 & 0.756 & +0.441 \\
+ & GitHub & 0.431 & 0.610 & 0.455 & 0.952 & 0.866 & 0.891 & +0.437 \\
+ & CI/CD & 0.486 & 0.702 & 0.542 & 0.842 & 0.787 & 0.793 & +0.251 \\
+ & Shopify & 0.363 & 0.528 & 0.392 & 0.923 & 0.885 & 0.900 & +0.508 \\
+\midrule
+Haiku-4.5 & Kubernetes & 0.493 & 0.810 & 0.579 & 0.941 & 0.897 & 0.909 & +0.330 \\
+ & Ansible & 0.224 & 0.562 & 0.301 & 0.778 & 0.741 & 0.753 & +0.452 \\
+ & GitHub & 0.526 & 0.757 & 0.594 & 0.883 & 0.906 & 0.882 & +0.288 \\
+ & CI/CD & 0.481 & 0.750 & 0.548 & 0.705 & 0.825 & 0.729 & +0.181 \\
+ & Shopify & 0.739 & 0.911 & 0.800 & 0.964 & 0.940 & 0.946 & +0.146 \\
+\bottomrule
+\end{tabular}
+\caption{Main results: Baseline (direct tool selection) vs.\ Graph (typed composition search) across all model--domain combinations. Graph routing improves F1 in all 19 combinations (avg.\ $\Delta$F1 = +0.329). All graph strategies produce zero hallucinated tools.}
+\label{tab:main-results}
+\end{table*}

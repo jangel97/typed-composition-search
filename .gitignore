@@ -22,6 +22,9 @@ venv/
 # OS
 .DS_Store
 
+# Archives
+*.zip
+
 # Benchmark outputs
 benchmarks/results/
 benchmarks/report.html

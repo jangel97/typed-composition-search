@@ -1,0 +1,27 @@
+\section{Limitations}
+\label{sec:limitations}
+
+\paragraph{Typed Graph Assumption.}
+Our method assumes tools can be modeled as typed transformations between entity types.
+This holds well for infrastructure APIs, data pipelines, and platform operations, but is less natural for side-effect tools (e.g., \texttt{send\_email}, \texttt{restart\_service}) that do not produce a typed output in the conventional sense.
+These can be accommodated with terminal types (e.g., \texttt{Action}), but this introduces design choices into the type ontology.
+
+\paragraph{Linear Composition Only.}
+BFS recovers a single shortest path, representing a linear tool chain.
+Tasks requiring branching (if/else), parallelism, or loops cannot be expressed.
+This limits applicability to sequential composition patterns, which are common in tool routing but not universal.
+
+\paragraph{BFS Through Write Operations.}
+BFS does not distinguish read and write operations.
+When a write path (e.g., \texttt{add\_host}) is shorter than a read path (e.g., \texttt{get\_hosts} $\rightarrow$ \texttt{select\_host}), BFS prefers the write path.
+This produces semantically mismatched tool chains for read-intent queries.
+Mitigations include edge weighting by intent or LLM-predicted operation type.
+
+\paragraph{Ontology Quality Dependency.}
+The quality of the typed graph depends on the entity type ontology.
+Overly fine-grained types increase prediction difficulty; overly coarse types reduce graph constraint.
+Our evaluation uses manually designed ontologies; automatically constructing ontologies from API specifications (e.g., OpenAPI, GraphQL schemas) is a direction for future work.
+
+\paragraph{Compound Queries.}
+Queries with multiple independent intents (e.g., ``get pod logs and check node status'') map to multiple graph paths.
+Our current system handles single-intent queries; extending to compound queries would require intent decomposition.

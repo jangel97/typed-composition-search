@@ -1,0 +1,12 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented Typed Composition Search, a reformulation of tool routing as typed entity reasoning.
+By modeling tools as typed transformations in a directed graph, we decompose the routing problem into entity type prediction (handled by the LLM) and path recovery (handled by deterministic graph search).
+
+This decomposition yields three properties: consistent improvement over direct selection (19/19 model--domain combinations, avg.\ $\Delta$F1 = +0.33), zero hallucinated tool invocations (a structural guarantee), and an analytical framework where end-to-end recall decomposes into type prediction accuracy and graph reachability.
+
+The typed graph exhibits intrinsic fault tolerance: incorrect type predictions still recover approximately 40\% of the correct tool chain through nearby graph paths.
+The approach requires no training, fine-tuning, or embedding computation, working with any off-the-shelf language model.
+
+Future directions include automatic ontology construction from API specifications, hybrid retrieval--graph approaches, topology ablation studies, and extension to non-linear composition patterns.

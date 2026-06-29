@@ -1,0 +1,17 @@
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{l cccc}
+\toprule
+\textbf{Domain} & \textbf{Avg} & \textbf{Med} & \textbf{Min} & \textbf{Max} \\
+\midrule
+Kubernetes & 0.630 & 0.510 & 0.220 & 0.950 \\
+Ansible & 0.670 & 0.750 & 0.250 & 0.930 \\
+GitHub & 0.560 & 0.600 & 0.090 & 0.930 \\
+CI/CD & 0.870 & 0.860 & 0.760 & 0.960 \\
+Shopify & 0.780 & 0.750 & 0.520 & 0.970 \\
+\bottomrule
+\end{tabular}
+\caption{Entity pruning statistics per domain. Pruning $= 1 - |\text{reachable sources}| / |\mathcal{E}|$. Even CI/CD (types $\approx$ tools) achieves 87\% average pruning.}
+\label{tab:entity-pruning}
+\end{table}

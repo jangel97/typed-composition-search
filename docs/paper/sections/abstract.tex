@@ -1,0 +1,12 @@
+\begin{abstract}
+As LLM-based agents integrate with growing tool ecosystems, tool routing---determining which tools to invoke for a query---becomes a bottleneck.
+Direct selection from large catalogs degrades accuracy, introduces hallucinated tool invocations, and does not guarantee compositional validity.
+We propose \textbf{Typed Composition Search}, which reformulates tool routing as typed entity reasoning.
+Tools are modeled as typed transformations between entity types, forming a directed graph.
+Given a query, the LLM predicts source and target entity types; breadth-first search on the graph recovers the tool sequence.
+This separates semantic reasoning (entity types) from compositional reasoning (graph structure).
+We evaluate across 4 models (8B--20B+ parameters), 5 domains (54--170 tools), and 140 queries.
+Graph routing improves F1 in all 19 model--domain combinations (avg.\ $\Delta$F1 = +0.33) and eliminates hallucinated tool invocations entirely---a structural guarantee, not a statistical trend.
+End-to-end recall decomposes cleanly into type prediction accuracy and graph reachability, with incorrect predictions still recovering $\sim$40\% of correct tools through nearby graph paths.
+The approach requires no training or fine-tuning.
+\end{abstract}

@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{l ccc}
+\toprule
+\textbf{Category} & \textbf{Source} & \textbf{Target} & \textbf{Both} \\
+\midrule
+Clean & 0.847 & 0.958 & 0.832 \\
+Multihop & 0.670 & 0.961 & 0.660 \\
+Noisy & 0.589 & 0.836 & 0.548 \\
+Synonym & 0.728 & 0.605 & 0.506 \\
+Ambiguous & 0.614 & 0.333 & 0.263 \\
+Multipath & 0.533 & 0.700 & 0.367 \\
+\midrule
+Overall & 0.717 & 0.807 & 0.624 \\
+\bottomrule
+\end{tabular}
+\caption{Type prediction accuracy by query category, averaged across all models and domains. Source prediction (0.71) is harder than target prediction (0.81).}
+\label{tab:type-prediction}
+\end{table}

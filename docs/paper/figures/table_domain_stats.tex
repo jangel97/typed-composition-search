@@ -1,0 +1,17 @@
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{l rrr r}
+\toprule
+\textbf{Domain} & \textbf{Tools} & \textbf{Types} & \textbf{T/T\%} & \textbf{Pruning} \\
+\midrule
+Kubernetes & 135 & 41 & 30\% & 63\% \\
+Ansible & 108 & 40 & 37\% & 67\% \\
+GitHub & 133 & 44 & 33\% & 56\% \\
+CI/CD & 54 & 51 & 94\% & 87\% \\
+Shopify & 170 & 61 & 35\% & 78\% \\
+\bottomrule
+\end{tabular}
+\caption{Domain statistics. T/T\% = types-to-tools ratio. Pruning = average entity pruning (graph reachability constraint). CI/CD has near-parity types/tools yet achieves the highest pruning (87\%).}
+\label{tab:domain-stats}
+\end{table}
