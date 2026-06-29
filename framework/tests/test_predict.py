@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tcs import Registry
-from tcs.predict import Prediction, TypePredictor, _parse_prediction
+from toolgraph import Registry
+from toolgraph.predict import Prediction, TypePredictor, _parse_prediction
 
 
 ENTITY_TYPES = {
@@ -49,7 +49,7 @@ class TestParsePrediction:
 
 
 class TestTypePredictor:
-    @patch("tcs.predict.TypePredictor.__init__", return_value=None)
+    @patch("toolgraph.predict.TypePredictor.__init__", return_value=None)
     def _make_predictor(self, mock_init):
         predictor = TypePredictor.__new__(TypePredictor)
         predictor._model = "test-model"

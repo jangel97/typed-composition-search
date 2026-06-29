@@ -1,16 +1,16 @@
 \begin{table*}[t]
 \centering
 \small
-\begin{tabular}{l cccccc}
+\begin{tabular}{l ccccccc}
 \toprule
-\textbf{Model} & \textbf{Baseline} & \textbf{Retrieval} & \textbf{Graph} & \textbf{Graph-Rev} & \textbf{Oracle} & \textbf{Halluc.} \\
+\textbf{Model} & \textbf{Baseline} & \textbf{Fn-Call} & \textbf{Retrieval} & \textbf{Graph} & \textbf{Graph-Rev} & \textbf{Oracle} & \textbf{Halluc.} \\
 \midrule
-Granite-8B & 0.486 & 0.472 & 0.852 & 0.693 & 1.000 & 3 \\
-Qwen3-14B & 0.576 & 0.582 & 0.840 & 0.734 & 1.000 & 16 \\
-GPT-OSS-20B & 0.450 & 0.529 & 0.834 & 0.000 & 1.000 & 1 \\
-Haiku-4.5 & 0.564 & 0.565 & 0.844 & -- & 1.000 & 2 \\
+Granite-8B & 0.486 & 0.339 & 0.472 & 0.852 & 0.693 & 1.000 & 3 \\
+Qwen3-14B & 0.576 & 0.451 & 0.582 & 0.840 & 0.734 & 1.000 & 16 \\
+GPT-OSS-20B & 0.450 & 0.138 & 0.529 & 0.834 & 0.000 & 1.000 & 1 \\
+Haiku-4.5 & 0.564 & 0.000 & 0.565 & 0.844 & -- & 1.000 & 2 \\
 \bottomrule
 \end{tabular}
-\caption{Average F1 across domains by strategy. Oracle uses ground-truth types. Halluc.\ = total hallucinated tools for Baseline (Graph = 0 for all models).}
+\caption{Average F1 across domains by strategy. Fn-Call = native function-calling baseline. Oracle uses ground-truth types. Halluc.\ = total hallucinated tools for Baseline (Graph = 0 for all models). Native function calling underperforms prompt-based selection across all models.}
 \label{tab:strategy-comparison}
 \end{table*}

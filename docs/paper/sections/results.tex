@@ -15,7 +15,13 @@ Because queries are grouped by model and domain, we also test at the model--doma
 The five non-significant comparisons correspond to the four CI/CD combinations and one Shopify combination, where baseline performance is already strongest and per-query effect sizes are smallest.
 The largest gains appear where baseline performance is weakest (Ansible: +0.30 to +0.47, GitHub: +0.25 to +0.54), suggesting that graph constraints are most valuable when unconstrained tool selection is hardest.
 
-Table~\ref{tab:strategy-comparison} compares all six routing strategies.
+Table~\ref{tab:strategy-comparison} compares all seven routing strategies, which form a natural progression: prompt-based selection, native function calling, retrieval-augmented selection, and graph-constrained routing.
+
+Native function calling underperforms prompt-based selection across all models.
+Haiku-4.5 frequently abstained from emitting tool calls when presented with large function catalogs, yielding F1 = 0.000 on every domain.
+The remaining models selected fewer correct tools than the prompt-based baseline.
+These results suggest that native function calling alone does not solve large-scale tool routing in our benchmark, and that the prompt-based baseline is the stronger direct-selection comparator.
+
 Retrieval-based routing provides modest improvements over the baseline but falls well short of graph routing.
 Retrieval reduces the search space by filtering semantically similar tools, but does not enforce compositional validity.
 The retrieved tools may be individually relevant but not necessarily composable into a valid workflow, which is precisely the problem that the typed graph addresses.

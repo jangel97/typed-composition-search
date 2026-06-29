@@ -20,8 +20,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jmorena/toolgraph"
-Repository = "https://github.com/jmorena/toolgraph"
+Homepage = "https://github.com/jangel97/toolgraph"
+Repository = "https://github.com/jangel97/toolgraph"
 
 [project.optional-dependencies]
 llm = ["litellm>=1.89.3"]

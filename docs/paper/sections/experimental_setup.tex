@@ -50,7 +50,7 @@ Queries were manually authored by the first author for each domain based on real
 For each domain, queries were written to cover six predefined routing challenge categories, with category counts chosen to ensure representation of each difficulty type while emphasizing clean queries as a baseline.
 Ground-truth annotations (source type, target type, and expected tool sequence) were derived from the typed composition graph independently of any model outputs, and all queries were finalized before model evaluation began.
 Queries were written individually rather than generated from templates.
-Appendix~\ref{sec:appendix-queries} provides sample queries for each category.
+The complete benchmark containing all 140 annotated queries, tool registries, and typed composition graphs will be released upon publication.
 
 Queries are organized into six categories that exercise different routing challenges:
 
@@ -74,10 +74,11 @@ Each query is annotated with
 \subsection{Routing Strategies}
 \label{sec:strategies}
 
-We compare TCR against five alternative routing strategies.
+We compare TCR against six representative routing strategies.
 
 \begin{enumerate}
-    \item \textbf{Baseline}: direct tool selection from the complete tool catalog.
+    \item \textbf{Baseline}: direct tool selection from the complete tool catalog via prompt-based selection.
+    \item \textbf{Function Calling}: since modern LLM APIs increasingly expose native function-calling interfaces, we evaluate whether structured tool schemas improve routing compared to prompt-based selection. Tools are passed as OpenAI-compatible function schemas via the \texttt{tools} parameter.
     \item \textbf{Retrieval}: embedding-based retrieval selects the top-$k$ candidate tools before tool selection.
     \item \textbf{Graph}: Typed Composition Routing (ours).
     \item \textbf{Graph-Reverse}: target-first graph routing with probability-based source selection using multiple model completions.
@@ -85,7 +86,7 @@ We compare TCR against five alternative routing strategies.
     \item \textbf{Model-Types}: entity prediction only, without graph search, isolating type prediction quality (results reported in Tables~\ref{tab:type-prediction} and~\ref{tab:recall-decomposition}).
 \end{enumerate}
 
-Together, these strategies isolate the contribution of each component of the proposed formulation: direct tool reasoning, retrieval-based reduction, entity prediction, and graph composition.
+Together, these strategies isolate the contribution of each component of the proposed formulation: prompt-based tool reasoning, native function calling, retrieval-based reduction, entity prediction, and graph composition.
 
 \subsection{Evaluation Metrics}
 \label{sec:metrics}
@@ -110,8 +111,9 @@ These metrics allow the routing pipeline to be analyzed at both the semantic pre
 All language model calls use greedy decoding (temperature 0, max tokens 1024) with a single completion per query, making results deterministic across runs.
 Prompts follow a structured format with equivalent engineering effort across strategies.
 The baseline receives the complete tool catalog, with each tool listed by name and typed input/output signature, and is instructed to return a JSON list of tool names in execution order.
+The function-calling strategy presents the same tools as OpenAI-compatible function schemas via the \texttt{tools} API parameter with \texttt{tool\_choice=auto}, and extracts predicted tools from the structured \texttt{tool\_calls} response.
 The graph strategy receives the full list of entity types and returns a JSON object with predicted source and target types.
-Both strategies use identical decoding parameters and the same structured output format.
+All strategies use identical decoding parameters.
 The graph-reverse strategy uses 5 completions with probability-based aggregation for source selection.
 
 For the retrieval strategy, each tool is represented as its name and typed signature (e.g., \texttt{list\_pods: (Namespace) $\rightarrow$ (PodList)}) and embedded using \texttt{nomic-embed-text-v1.5}.

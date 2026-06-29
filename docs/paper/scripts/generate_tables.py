@@ -383,9 +383,9 @@ def table_strategy_comparison(data):
     lines.append(r"\begin{table*}[t]")
     lines.append(r"\centering")
     lines.append(r"\small")
-    lines.append(r"\begin{tabular}{l cccccc}")
+    lines.append(r"\begin{tabular}{l ccccccc}")
     lines.append(r"\toprule")
-    lines.append(r"\textbf{Model} & \textbf{Baseline} & \textbf{Retrieval} & \textbf{Graph} & \textbf{Graph-Rev} & \textbf{Oracle} & \textbf{Halluc.} \\")
+    lines.append(r"\textbf{Model} & \textbf{Baseline} & \textbf{Fn-Call} & \textbf{Retrieval} & \textbf{Graph} & \textbf{Graph-Rev} & \textbf{Oracle} & \textbf{Halluc.} \\")
     lines.append(r"\midrule")
 
     for model in MODEL_ORDER:
@@ -396,7 +396,7 @@ def table_strategy_comparison(data):
             if key not in data:
                 continue
             strategies = data[key]
-            for sname in ["baseline", "retrieval (top-10)", "graph", "graph-rev-probs (n=5)", "graph-perfect"]:
+            for sname in ["baseline", "baseline-tools", "retrieval (top-10)", "graph", "graph-rev-probs (n=5)", "graph-perfect"]:
                 s = get_strategy(strategies, sname)
                 if s and s.get("f1", -1) >= 0:
                     f1s[sname].append(s["f1"])
@@ -406,6 +406,7 @@ def table_strategy_comparison(data):
             return sum(f1s[name]) / len(f1s[name]) if f1s[name] else -1
 
         bl = avg_f1("baseline")
+        blt = avg_f1("baseline-tools")
         ret = avg_f1("retrieval (top-10)")
         gr = avg_f1("graph")
         rev = avg_f1("graph-rev-probs (n=5)")
@@ -413,13 +414,14 @@ def table_strategy_comparison(data):
         h_bl = total_halluc["baseline"]
 
         lines.append(
-            f"{MODEL_DISPLAY.get(model, model)} & {fmt(bl)} & {fmt(ret)} & {fmt(gr)} & {fmt(rev)} & {fmt(orc)} & {h_bl} \\\\"
+            f"{MODEL_DISPLAY.get(model, model)} & {fmt(bl)} & {fmt(blt)} & {fmt(ret)} & {fmt(gr)} & {fmt(rev)} & {fmt(orc)} & {h_bl} \\\\"
         )
 
     lines.append(r"\bottomrule")
     lines.append(r"\end{tabular}")
-    lines.append(r"\caption{Average F1 across domains by strategy. Oracle uses ground-truth types. "
-                 r"Halluc.\ = total hallucinated tools for Baseline (Graph = 0 for all models).}")
+    lines.append(r"\caption{Average F1 across domains by strategy. Fn-Call = native function-calling baseline. Oracle uses ground-truth types. "
+                 r"Halluc.\ = total hallucinated tools for Baseline (Graph = 0 for all models). "
+                 r"Native function calling underperforms prompt-based selection across all models.}")
     lines.append(r"\label{tab:strategy-comparison}")
     lines.append(r"\end{table*}")
     return "\n".join(lines)

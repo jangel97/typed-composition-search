@@ -1,4 +1,4 @@
-# tcs
+# toolgraph
 
 Tool routing via typed composition graphs. Register tools with input/output entity types, then resolve multi-step tool chains automatically using graph search.
 
@@ -7,19 +7,19 @@ Instead of asking an LLM to select from hundreds of tools, reduce the problem to
 ## Install
 
 ```bash
-pip install tcs
+pip install toolgraph
 ```
 
 For LLM-based type prediction:
 
 ```bash
-pip install tcs[llm]
+pip install toolgraph[llm]
 ```
 
 ## Quick start
 
 ```python
-from tcs import Registry
+from toolgraph import Registry
 
 reg = Registry()
 
@@ -57,8 +57,8 @@ reg.graph.metrics()
 Use `TypePredictor` to automatically predict source/target entity types from natural language queries, then resolve the tool chain.
 
 ```python
-from tcs import Registry
-from tcs.predict import TypePredictor
+from toolgraph import Registry
+from toolgraph.predict import TypePredictor
 
 reg = Registry()
 reg.register("get_deployment", ("DeploymentName",), ("Deployment",))
