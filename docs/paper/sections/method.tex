@@ -116,8 +116,21 @@ The complete routing function is
 where $\textsc{Path}$ returns the shortest valid tool sequence connecting the predicted entity types.
 Any shortest-path algorithm may be used; in our implementation we use breadth-first search because all graph edges are unweighted.
 
-Since every returned sequence corresponds to a path in the typed graph, every tool composition is guaranteed to satisfy input-output compatibility.
-Structurally invalid tool compositions cannot be generated.
+Two structural properties follow directly from this formulation.
+
+\paragraph{Proposition 1 (Structural validity).}
+If $\pi(q)$ returns a non-empty sequence $[t_1, \ldots, t_l]$, then (i) every tool $t_i \in \mathcal{T}$ belongs to the registry, and (ii) for every adjacent pair $(t_i, t_{i+1})$, the output type of $t_i$ matches the input type of $t_{i+1}$.
+
+\emph{Proof.}
+The sequence corresponds to a path in $G = (\mathcal{E}, \mathcal{T})$.
+Each edge in $G$ is a registered tool, so (i) holds.
+Adjacent edges share a common node (entity type), so (ii) holds by the graph construction in Section~\ref{sec:typed-graph}. \hfill $\square$
+
+\paragraph{Corollary (Zero hallucinated tools).}
+$\pi(q)$ cannot return a tool $t \notin \mathcal{T}$.
+Graph search traverses only edges present in $G$, and every edge corresponds to a registered tool.
+
+If no valid path exists between the predicted entity types, the system returns an empty result rather than generating an invalid tool composition.
 
 This decomposition separates routing correctness into two independent components:
 
@@ -125,8 +138,6 @@ This decomposition separates routing correctness into two independent components
 \item semantic correctness (whether the language model predicts the correct entity types);
 \item compositional correctness (whether the graph contains a valid path between them).
 \end{enumerate}
-
-If no valid path exists, the system returns an empty result rather than generating an invalid tool composition.
 
 \subsection{Graph-Constrained Reasoning}
 \label{sec:graph-constraint}
@@ -163,7 +174,8 @@ For example, a pruning value of 0.87 indicates that 87\% of possible source enti
 Importantly, this reduction depends only on graph topology.
 It is independent of the language model and therefore applies equally to any type prediction model.
 
-Because routing decomposes into type prediction followed by deterministic graph search, end-to-end recall also admits a simple decomposition:
+Because routing decomposes into type prediction followed by deterministic graph search, end-to-end recall can be conditioned on whether the predicted entity types are correct.
+By the law of total expectation:
 
 \begin{equation}
     R
@@ -174,8 +186,9 @@ Because routing decomposes into type prediction followed by deterministic graph 
     \label{eq:recall-decomposition}
 \end{equation}
 
-where $P_c$ denotes the probability of correct entity type prediction,
-$R_c$ the routing recall when the predicted types are correct,
-and $R_w$ the routing recall when they are incorrect.
+where $P_c$ denotes the probability that both predicted entity types are correct,
+$R_c$ the routing recall conditioned on correct predictions,
+and $R_w$ the routing recall conditioned on incorrect predictions.
 
-This decomposition separates language model performance from graph quality and enables routing failures to be analyzed independently.
+The first term captures the contribution of accurate semantic reasoning; the second captures the degree to which the graph recovers partial results under prediction errors.
+This decomposition separates language model performance from graph quality and enables routing failures to be attributed to one component or the other.

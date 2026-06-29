@@ -4,13 +4,15 @@
 \subsection{Main Results (H1)}
 \label{sec:main-results}
 
-Table~\ref{tab:main-results} presents the primary comparison between baseline (direct tool selection) and graph-based routing across all model--domain combinations.
+Graph routing improves aggregate F1 in every model--domain combination (20/20, average $\Delta$F1 = +0.323).
+Table~\ref{tab:main-results} presents the full comparison.
 
 \input{figures/table_main_results}
 
-Graph routing improves aggregate F1 in every model--domain combination (20/20, average $\Delta$F1 = +0.323), indicating that the benefit is consistent across both models and domains rather than being driven by a particular benchmark configuration.
+The improvement is consistent across both models and domains rather than being driven by a particular benchmark configuration.
 A pooled Wilcoxon signed-rank test over all 560 query-level paired comparisons confirms that the improvement is statistically significant ($p < 10^{-30}$; bootstrap 95\% CI on mean $\Delta$F1: $[+0.27, +0.37]$).
-At the individual combination level, 15 of the 20 model--domain comparisons reach significance at $p < 0.05$; the five non-significant comparisons correspond to the four CI/CD combinations and one Shopify combination, where baseline performance is already strongest and per-query effect sizes are smallest.
+Because queries are grouped by model and domain, we also test at the model--domain level: 15 of the 20 aggregate comparisons reach significance at $p < 0.05$, and the aggregate $\Delta$F1 is positive in all 20.
+The five non-significant comparisons correspond to the four CI/CD combinations and one Shopify combination, where baseline performance is already strongest and per-query effect sizes are smallest.
 The largest gains appear where baseline performance is weakest (Ansible: +0.34 to +0.47, GitHub: +0.25 to +0.54), suggesting that graph constraints are most valuable when unconstrained tool selection is hardest.
 
 Table~\ref{tab:strategy-comparison} compares all six routing strategies.
@@ -29,8 +31,8 @@ This result confirms that the typed composition graph has complete coverage, tha
 
 \input{figures/table_hallucinations}
 
-All graph-constrained strategies produce zero hallucinated tools across all model--domain combinations (Table~\ref{tab:hallucinations}).
-Unlike the baseline, this is not an empirical observation but a structural property of the algorithm: graph search can only traverse registered edges, so no tool outside the registry can appear in the output.
+As guaranteed by Proposition~1 and its corollary (Section~\ref{sec:tcs}), all graph-constrained strategies produce zero hallucinated tools across all model--domain combinations (Table~\ref{tab:hallucinations}).
+This is not an empirical observation but a direct consequence of the graph formulation: graph search can only traverse registered edges, so no tool outside the registry can appear in the output.
 In contrast, the baseline produces hallucinated tools in most runs, with totals ranging from 1 to 16 per model across domains.
 
 The distinction matters for deployment.
@@ -91,7 +93,9 @@ It applies to any model performing type prediction.
 \subsection{Token Efficiency}
 \label{sec:token-efficiency}
 
-Graph-based routing uses 500--900 prompt tokens per query, compared to 1,500--3,000 for the baseline.
-The 50--70\% reduction comes from presenting only path-relevant entity types and tools instead of the full catalog.
-The savings scale naturally with catalog size: as tool registries grow, the baseline must include proportionally more tool descriptions in the prompt, while graph routing presents only the tools along the recovered path.
+We measure average prompt tokens per query across all model--domain combinations.
+The baseline includes the full tool catalog (name and typed signature per tool) in the system prompt, averaging 1,823 prompt tokens per query (range: 847--3,033 across domains).
+Graph-based routing presents only the list of entity types for type prediction, averaging 683 prompt tokens (range: 488--1,004).
+The resulting 50--70\% reduction comes from replacing the full tool catalog with a smaller set of entity type labels.
+The savings scale naturally with catalog size: as tool registries grow, the baseline must include proportionally more tool descriptions in the prompt, while graph routing presents only entity types whose count grows more slowly.
 The relative advantage therefore increases with catalog size, directly addressing the scalability concern raised in Section~\ref{sec:introduction}.

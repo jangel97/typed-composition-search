@@ -124,7 +124,8 @@ Valid tool chain
 
 We propose \textbf{Typed Composition Routing}, a reformulation of tool routing that explicitly separates these two reasoning problems (Figure~\ref{fig:approach}). Tools are modeled as typed transformations between entity types (e.g., \texttt{get\_pod\_logs}: \texttt{Pod} $\rightarrow$ \texttt{PodLogs}), forming a directed graph where entity types are nodes and tools are edges. Given a user query, the LLM predicts the source and target entity types, after which graph search deterministically recovers the corresponding tool composition.
 
-This decomposition shifts the LLM from selecting executable tools to predicting semantic entities, while delegating composition to a deterministic graph algorithm. Rather than asking the model to discover valid workflows directly, Typed Composition Routing asks it to identify the entities involved, allowing the graph to recover the execution path.
+Where direct tool routing maps a query to a tool sequence ($q \rightarrow \{t_1, \ldots, t_k\}$), Typed Composition Routing factorizes this into two independent steps: entity type prediction ($q \rightarrow (e_{\mathrm{src}}, e_{\mathrm{tgt}})$) followed by graph path recovery ($(e_{\mathrm{src}}, e_{\mathrm{tgt}}) \rightarrow [t_1, \ldots, t_l]$).
+This factorization shifts the LLM from selecting executable tools to predicting semantic entities, while delegating composition to a deterministic graph algorithm.
 
 We evaluate the proposed formulation across multiple language models, tool ecosystems, and routing strategies spanning a diverse collection of enterprise domains. Our experiments demonstrate consistent improvements over direct tool selection while providing a simple analytical decomposition that explains end-to-end routing performance in terms of entity prediction accuracy and graph resolution.
 

@@ -38,7 +38,7 @@ We evaluate four language models spanning different architectures and model size
     \item \textbf{Claude Haiku 4.5}
 \end{itemize}
 
-All models are evaluated off-the-shelf without fine-tuning and queried with temperature 0, making predictions deterministic across runs.
+All models are evaluated off-the-shelf without fine-tuning.
 Since TCR requires only entity type prediction, the approach is applicable to any language model capable of natural language understanding, regardless of whether it was specifically trained for tool use.
 
 \subsection{Query Dataset}
@@ -48,8 +48,9 @@ The benchmark contains 140 manually curated queries distributed across the five 
 
 Queries were manually authored by the first author for each domain based on realistic operational tasks supported by the corresponding tool registry.
 For each domain, queries were written to cover six predefined routing challenge categories, with category counts chosen to ensure representation of each difficulty type while emphasizing clean queries as a baseline.
-Ground-truth annotations (source type, target type, and expected tool sequence) were manually derived and verified for consistency with the typed composition graph.
+Ground-truth annotations (source type, target type, and expected tool sequence) were derived from the typed composition graph independently of any model outputs, and all queries were finalized before model evaluation began.
 Queries were written individually rather than generated from templates.
+Appendix~\ref{sec:appendix-queries} provides sample queries for each category.
 
 Queries are organized into six categories that exercise different routing challenges:
 
@@ -102,6 +103,23 @@ For entity prediction, we report
 \end{itemize}
 
 These metrics allow the routing pipeline to be analyzed at both the semantic prediction level and the end-to-end execution level.
+
+\subsection{Implementation Details}
+\label{sec:implementation}
+
+All language model calls use greedy decoding (temperature 0, max tokens 1024) with a single completion per query, making results deterministic across runs.
+Prompts follow a structured format with equivalent engineering effort across strategies.
+The baseline receives the complete tool catalog, with each tool listed by name and typed input/output signature, and is instructed to return a JSON list of tool names in execution order.
+The graph strategy receives the full list of entity types and returns a JSON object with predicted source and target types.
+Both strategies use identical decoding parameters and the same structured output format.
+The graph-reverse strategy uses 5 completions with probability-based aggregation for source selection.
+
+For the retrieval strategy, each tool is represented as its name and typed signature (e.g., \texttt{list\_pods: (Namespace) $\rightarrow$ (PodList)}) and embedded using \texttt{nomic-embed-text-v1.5}.
+The user query is embedded with the same model, and the top-10 tools by cosine similarity are presented to the language model using the same prompt template and decoding parameters as the baseline.
+The value $k = 10$ was not tuned; it was chosen as a round number providing reasonable coverage across domains.
+
+Query annotations were authored and verified by the first author.
+All results are from single deterministic runs; since temperature is set to 0, repeated runs produce identical outputs.
 
 \subsection{Research Hypotheses}
 \label{sec:hypotheses}
