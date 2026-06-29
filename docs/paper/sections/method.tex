@@ -83,7 +83,7 @@ The graph is constructed once from the typed tool registry and is independent of
 No training, fine-tuning, embeddings, or learned routing policies are required.
 
 \subsection{Typed Composition Routing}
-\label{sec:tcs}
+\label{sec:tcr}
 
 Routing is decomposed into two independent stages.
 
@@ -104,7 +104,7 @@ The complete routing function is
 \begin{equation}
     \pi(q)
     =
-    \textsc{Path}
+    \operatorname{Path}
     \left(
         G,
         f_{\mathrm{src}}(q),
@@ -113,7 +113,7 @@ The complete routing function is
     \label{eq:routing-function}
 \end{equation}
 
-where $\textsc{Path}$ returns the shortest valid tool sequence connecting the predicted entity types.
+where $\operatorname{Path}$ returns the shortest valid tool sequence connecting the predicted entity types.
 Any shortest-path algorithm may be used; in our implementation we use breadth-first search because all graph edges are unweighted.
 
 Two structural properties follow directly from this formulation.
@@ -182,13 +182,13 @@ By the law of total expectation:
     =
     P_cR_c
     +
-    (1-P_c)R_w,
+    (1-P_c)R_{\text{wrong}},
     \label{eq:recall-decomposition}
 \end{equation}
 
 where $P_c$ denotes the probability that both predicted entity types are correct,
 $R_c$ the routing recall conditioned on correct predictions,
-and $R_w$ the routing recall conditioned on incorrect predictions.
+and $R_{\text{wrong}}$ the routing recall conditioned on incorrect predictions.
 
 The first term captures the contribution of accurate semantic reasoning; the second captures the degree to which the graph recovers partial results under prediction errors.
 This decomposition separates language model performance from graph quality and enables routing failures to be attributed to one component or the other.

@@ -125,27 +125,20 @@ Valid tool chain
 We propose \textbf{Typed Composition Routing}, a reformulation of tool routing that explicitly separates these two reasoning problems (Figure~\ref{fig:approach}). Tools are modeled as typed transformations between entity types (e.g., \texttt{get\_pod\_logs}: \texttt{Pod} $\rightarrow$ \texttt{PodLogs}), forming a directed graph where entity types are nodes and tools are edges. Given a user query, the LLM predicts the source and target entity types, after which graph search deterministically recovers the corresponding tool composition.
 
 Where direct tool routing maps a query to a tool sequence ($q \rightarrow \{t_1, \ldots, t_k\}$), Typed Composition Routing factorizes this into two independent steps: entity type prediction ($q \rightarrow (e_{\mathrm{src}}, e_{\mathrm{tgt}})$) followed by graph path recovery ($(e_{\mathrm{src}}, e_{\mathrm{tgt}}) \rightarrow [t_1, \ldots, t_l]$).
-This factorization shifts the LLM from selecting executable tools to predicting semantic entities, while delegating composition to a deterministic graph algorithm.
+Direct routing requires the model to jointly solve semantic inference and compositional planning over the entire tool catalog.
+This factorization decomposes the joint problem into two lower-complexity tasks with different computational characteristics: entity type prediction, which leverages the LLM's strength in semantic reasoning over a reduced label space, and graph path recovery, which is solved exactly by deterministic search.
 
 We evaluate the proposed formulation across multiple language models, tool ecosystems, and routing strategies spanning a diverse collection of enterprise domains. Our experiments demonstrate consistent improvements over direct tool selection while providing a simple analytical decomposition that explains end-to-end routing performance in terms of entity prediction accuracy and graph resolution.
 
-Our contributions are:
+Our primary contribution is a new formulation of tool routing as typed entity reasoning over a composition graph, replacing direct tool selection with entity type prediction followed by deterministic graph search.
+In support of this formulation:
 
 \begin{enumerate}
 
-\item \textbf{Problem reformulation.}
-We reformulate tool routing as typed entity reasoning, shifting the LLM's responsibility from direct tool selection to entity type prediction.
+\item We define a \textbf{typed graph execution model} in which entity prediction and graph search jointly recover valid tool compositions without training, fine-tuning, or embedding retrieval.
 
-\item \textbf{Typed graph execution model.}
-We introduce a deterministic execution model that combines entity prediction with graph search to recover valid tool compositions without training, fine-tuning, or embedding retrieval.
+\item We derive an \textbf{analytical decomposition} of end-to-end routing recall into entity prediction accuracy and graph reachability, enabling routing failures to be attributed to either component.
 
-\item \textbf{Analytical decomposition.}
-We show that end-to-end routing recall decomposes into entity prediction accuracy and graph reachability, enabling targeted analysis of routing failures.
-
-\item \textbf{Comprehensive benchmark.}
-We evaluate four language models across five tool domains, six routing strategies, and 140 benchmark queries covering multiple routing difficulty categories.
-
-\item \textbf{Empirical validation.}
-We demonstrate that Typed Composition Routing consistently improves routing performance while constraining all recovered tool chains to valid graph paths.
+\item We provide \textbf{empirical validation} across four language models, five tool domains, six routing strategies, and 140 benchmark queries, demonstrating consistent improvements over direct tool selection while guaranteeing structural validity of all recovered tool chains.
 
 \end{enumerate}

@@ -82,7 +82,7 @@ We compare TCR against five alternative routing strategies.
     \item \textbf{Graph}: Typed Composition Routing (ours).
     \item \textbf{Graph-Reverse}: target-first graph routing with probability-based source selection using multiple model completions.
     \item \textbf{Oracle}: graph search using ground-truth entity types, providing an upper bound on graph routing performance.
-    \item \textbf{Model-Types}: entity prediction only, without graph search, isolating type prediction quality.
+    \item \textbf{Model-Types}: entity prediction only, without graph search, isolating type prediction quality (results reported in Tables~\ref{tab:type-prediction} and~\ref{tab:recall-decomposition}).
 \end{enumerate}
 
 Together, these strategies isolate the contribution of each component of the proposed formulation: direct tool reasoning, retrieval-based reduction, entity prediction, and graph composition.

@@ -30,8 +30,7 @@ Applications emphasizing exploration or recall may instead tolerate structurally
 The smaller models evaluated in this study benefit more from graph routing than the larger models.
 Granite-8B averages $\Delta$F1 = +0.365 across domains, whereas Qwen3-14B averages +0.264.
 
-This observation is consistent with the hypothesis that structural constraints compensate for weaker semantic reasoning by reducing the effective decision space presented to the language model.
-Because this comparison involves only four evaluated models, we interpret it as preliminary evidence rather than a general scaling law.
+Because this comparison involves only four models, we interpret it as preliminary evidence that graph constraints may compensate for weaker tool-selection ability rather than a general scaling law.
 
 \subsection{Mechanistic Explanation}
 \label{sec:mechanistic}
@@ -45,6 +44,7 @@ The prediction problem is therefore expressed over the entity space instead of t
 Entity pruning (Section~\ref{sec:entity-pruning}) further reduces this space by eliminating unreachable source entities once the target type is known.
 Across domains, 56--87\% of entity types are removed before source prediction.
 This reduction is entirely determined by graph topology and is independent of model quality.
+The type prediction accuracies reported in Table~\ref{tab:type-prediction} reflect this simplified prediction task.
 
 \paragraph{Structural Reduction.}
 
@@ -52,13 +52,14 @@ Graph search transforms semantic predictions into executable workflows.
 Rather than considering arbitrary tool combinations, graph search explores only compositionally valid paths in the typed composition graph connecting the predicted entity types.
 The effective decision space is therefore reduced from the entire tool catalog to the small set of tools lying on valid graph paths.
 In practice, each query exposes only 1.4--2.0 candidate tools instead of the full registry of 54--170 tools.
+The entity pruning statistics in Table~\ref{tab:entity-pruning} quantify this reduction per domain.
 
 \paragraph{Execution Guarantees.}
 
 Every workflow returned by graph routing is compositionally valid by construction.
 Adjacent tools always compose because graph edges encode compatible input and output entity types.
 Consequently, graph routing cannot hallucinate tool invocations outside the registered tool graph.
-This structural guarantee is absent from direct tool selection.
+Table~\ref{tab:hallucinations} confirms this: graph-constrained strategies produce zero hallucinated tools across all model--domain combinations, while the baseline does not.
 
 Taken together, these mechanisms provide a plausible explanation for the observed improvements.
 Semantic reasoning is performed by the language model through entity prediction, structural reasoning is delegated to graph search, and execution is limited to compositionally valid workflows.

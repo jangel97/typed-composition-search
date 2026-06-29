@@ -1,39 +1,30 @@
 \section{Limitations}
 \label{sec:limitations}
 
-Typed Composition Routing relies on a typed composition graph and deterministic graph search.
-While this formulation provides strong structural guarantees, it also imposes several limitations.
-
 \paragraph{Typed Transformation Assumption.}
 
 Our formulation assumes that tools can be modeled as typed transformations between entity types.
 This assumption holds naturally for infrastructure APIs, platform operations, and many data-processing workflows, where tools consume one resource and produce another.
 It is less natural for imperative or side-effect operations (e.g., \texttt{send\_email} or \texttt{restart\_service}) that do not naturally expose typed outputs.
-Although such operations can be represented using terminal entity types (e.g., \texttt{Action}), doing so requires additional modeling decisions when constructing the graph.
+Such operations can be accommodated using terminal entity types (e.g., \texttt{Action}), but doing so requires additional modeling decisions during graph construction.
 
 \paragraph{Sequential Workflows.}
 
-Typed Composition Routing currently recovers a single shortest path using breadth-first search and therefore models sequential workflows only.
-Branching execution, parallel composition, iterative loops, or conditional control flow fall outside the expressiveness of the current formulation.
-Supporting richer workflow structures would require extending the graph representation beyond simple paths.
+The current formulation recovers a single shortest path and therefore models sequential workflows only.
+Branching execution, parallel composition, and conditional control flow would require extending the graph representation beyond simple paths.
 
 \paragraph{Uniform Edge Costs.}
 
-Breadth-first search assumes that all graph edges have equal cost.
-In practice, different tool invocations may represent fundamentally different operations.
-For example, a write operation (e.g., \texttt{add\_host}) may appear on a shorter graph path than a semantically preferable read-only sequence (e.g., \texttt{get\_hosts} $\rightarrow$ \texttt{select\_host}).
-The current formulation therefore optimizes graph distance rather than semantic suitability.
-Future work could incorporate weighted graph search using operation type, execution cost, or intent-aware edge weights.
+Breadth-first search treats all edges equally.
+In practice, a write operation may appear on a shorter path than a semantically preferable read-only sequence.
+Weighted graph search using operation type or execution cost is a natural extension.
 
-\paragraph{Ontology Quality.}
+\paragraph{Entity Type System Quality.}
 
-The effectiveness of graph routing depends on the quality of the underlying entity type system.
-Overly fine-grained ontologies increase the difficulty of entity prediction, whereas overly coarse ontologies weaken graph constraints by introducing unnecessary connectivity.
-Our experiments use manually constructed ontologies designed for each benchmark domain.
-Automatically deriving typed composition graphs from API specifications (e.g., OpenAPI or GraphQL schemas) remains an important direction for future work.
+The effectiveness of graph routing depends on the granularity of the entity type system.
+Our experiments use manually constructed type systems; automatically deriving typed composition graphs from API specifications (e.g., OpenAPI schemas) remains an open direction.
 
 \paragraph{Single-Intent Queries.}
 
-Our evaluation focuses on queries expressing a single objective.
-Compound requests (e.g., ``retrieve pod logs and check node status'') naturally correspond to multiple independent graph paths rather than a single workflow.
-Handling such queries would require an additional intent decomposition stage before graph search and is outside the scope of the current work.
+Our evaluation focuses on single-objective queries.
+Compound requests naturally correspond to multiple independent graph paths and would require an intent decomposition stage before graph search.

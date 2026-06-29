@@ -25,6 +25,17 @@ venv/
 # Archives
 *.zip
 
+# LaTeX
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.pdf
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
 # Benchmark outputs
 benchmarks/results/
 benchmarks/report.html

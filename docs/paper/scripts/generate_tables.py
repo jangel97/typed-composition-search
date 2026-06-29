@@ -109,7 +109,7 @@ def table_main_results(data):
     avg_deltas = {m: sum(v)/len(v) for m, v in deltas.items() if v}
     overall_avg = sum(sum(v) for v in deltas.values()) / sum(len(v) for v in deltas.values()) if deltas else 0
 
-    lines.append(r"\caption{Main results: Baseline (direct tool selection) vs.\ Graph (typed composition search) across all model--domain combinations. "
+    lines.append(r"\caption{Main results: Baseline (direct tool selection) vs.\ Graph (Typed Composition Routing) across all model--domain combinations. "
                  f"Graph routing improves F1 in all {sum(len(v) for v in deltas.values())} combinations "
                  f"(avg.\\ $\\Delta$F1 = +{overall_avg:.3f}). "
                  r"All graph strategies produce zero hallucinated tools.}")
@@ -249,7 +249,7 @@ def table_type_prediction(data):
     lines.append(r"\bottomrule")
     lines.append(r"\end{tabular}")
     lines.append(r"\caption{Type prediction accuracy by query category, averaged across all models and domains. "
-                 r"Source prediction (0.71) is harder than target prediction (0.81).}")
+                 r"Source prediction (0.70) is harder than target prediction (0.80).}")
     lines.append(r"\label{tab:type-prediction}")
     lines.append(r"\end{table}")
     return "\n".join(lines)

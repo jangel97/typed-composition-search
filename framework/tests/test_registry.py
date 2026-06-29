@@ -1,4 +1,4 @@
-from tcs import Registry
+from toolgraph import Registry
 
 
 class TestRegistry:

@@ -13,12 +13,15 @@ The improvement is consistent across both models and domains rather than being d
 A pooled Wilcoxon signed-rank test over all 560 query-level paired comparisons confirms that the improvement is statistically significant ($p < 10^{-30}$; bootstrap 95\% CI on mean $\Delta$F1: $[+0.27, +0.37]$).
 Because queries are grouped by model and domain, we also test at the model--domain level: 15 of the 20 aggregate comparisons reach significance at $p < 0.05$, and the aggregate $\Delta$F1 is positive in all 20.
 The five non-significant comparisons correspond to the four CI/CD combinations and one Shopify combination, where baseline performance is already strongest and per-query effect sizes are smallest.
-The largest gains appear where baseline performance is weakest (Ansible: +0.34 to +0.47, GitHub: +0.25 to +0.54), suggesting that graph constraints are most valuable when unconstrained tool selection is hardest.
+The largest gains appear where baseline performance is weakest (Ansible: +0.30 to +0.47, GitHub: +0.25 to +0.54), suggesting that graph constraints are most valuable when unconstrained tool selection is hardest.
 
 Table~\ref{tab:strategy-comparison} compares all six routing strategies.
 Retrieval-based routing provides modest improvements over the baseline but falls well short of graph routing.
 Retrieval reduces the search space by filtering semantically similar tools, but does not enforce compositional validity.
 The retrieved tools may be individually relevant but not necessarily composable into a valid workflow, which is precisely the problem that the typed graph addresses.
+
+Graph-reverse routing, which uses multiple completions with probability-based source selection, performs well for smaller models but degrades for larger ones: GPT-OSS-20B yields F1 = 0.000 due to degenerate probability distributions, and Haiku-4.5 was not evaluated with this strategy.
+These results suggest that the simpler target-first single-completion approach (Graph) is more robust across model families.
 
 The oracle strategy (graph search with ground-truth entity types) achieves F1 = 1.000 across all five domains.
 This result confirms that the typed composition graph has complete coverage, that every benchmark workflow is representable as a graph path, and that all remaining routing errors originate from entity type prediction rather than from limitations of the graph structure itself.
@@ -31,7 +34,7 @@ This result confirms that the typed composition graph has complete coverage, tha
 
 \input{figures/table_hallucinations}
 
-As guaranteed by Proposition~1 and its corollary (Section~\ref{sec:tcs}), all graph-constrained strategies produce zero hallucinated tools across all model--domain combinations (Table~\ref{tab:hallucinations}).
+As guaranteed by Proposition~1 and its corollary (Section~\ref{sec:tcr}), all graph-constrained strategies produce zero hallucinated tools across all model--domain combinations (Table~\ref{tab:hallucinations}).
 This is not an empirical observation but a direct consequence of the graph formulation: graph search can only traverse registered edges, so no tool outside the registry can appear in the output.
 In contrast, the baseline produces hallucinated tools in most runs, with totals ranging from 1 to 16 per model across domains.
 

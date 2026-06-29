@@ -1,4 +1,4 @@
-from tcs import Graph, Path, Tool
+from toolgraph import Graph, Path, Tool
 
 
 def make_tool(name: str, input_type: str, output_type: str) -> Tool:

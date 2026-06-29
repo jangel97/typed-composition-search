@@ -37,10 +37,28 @@ The language model predicts semantic intent through entity types, while graph se
 
 \paragraph{Positioning.}
 
-Our work occupies a distinct point in the design space.
-
-Retrieval-based approaches require neither graph structure nor training, but provide no compositional guarantees.
+Table~\ref{tab:positioning} summarizes the design space.
+Retrieval-based approaches require neither graph structure nor training but provide no compositional guarantees.
 Graph-native learning approaches provide strong structural reasoning but require supervised training or reinforcement learning.
-Typed Composition Routing combines structural reasoning with zero additional training by separating semantic prediction from graph-constrained composition.
+Typed Composition Routing combines structural guarantees with zero additional training by separating semantic prediction from graph-constrained composition.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{l c c c c}
+\toprule
+\textbf{Method} & \rotatebox{60}{\textbf{Predicts}} & \rotatebox{60}{\textbf{Graph}} & \rotatebox{60}{\textbf{Training}} & \rotatebox{60}{\textbf{Validity}} \\
+\midrule
+Direct selection       & Tools    & \texttimes & \texttimes & \texttimes \\
+Retrieval              & Tools    & \texttimes & \texttimes & \texttimes \\
+Graph learning         & Tasks    & \checkmark & \checkmark & \checkmark \\
+Agent reasoning        & Tools    & \texttimes & \texttimes & \texttimes \\
+\midrule
+\textbf{TCR (ours)}    & Types    & \checkmark & \texttimes & \checkmark \\
+\bottomrule
+\end{tabular}
+\caption{Design space positioning. \textbf{Predicts}: what the LLM selects (tools, tasks, or entity types). \textbf{Graph}: uses explicit graph structure. \textbf{Training}: requires task-specific training. \textbf{Validity}: guarantees compositionally valid outputs.}
+\label{tab:positioning}
+\end{table}
 
 To our knowledge, this is the first work to formulate tool routing as typed entity prediction followed by deterministic graph search, providing structural validity guarantees while remaining compatible with arbitrary off-the-shelf language models.

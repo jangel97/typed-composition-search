@@ -1,6 +1,6 @@
-# Typed Composition Search — Paper
+# Typed Composition Routing — Paper
 
-ACL-style LaTeX paper: "Typed Composition Search: Entity-Based Tool Routing for Large Tool Ecosystems"
+ACL-style LaTeX paper: "Typed Composition Routing: Decoupling Semantic and Compositional Reasoning for Tool Routing"
 
 ## Structure
 
@@ -20,7 +20,8 @@ docs/paper/
 │   ├── analysis.tex          # Sec 6 — Errors, regressions, mechanistic explanation
 │   ├── related_work.tex      # Sec 7 — PLaG, ControlLLM, GRAFT, positioning
 │   ├── limitations.tex       # Sec 8 — Typed graph assumption, linear composition, BFS write ops
-│   └── conclusion.tex        # Sec 9
+│   ├── conclusion.tex        # Sec 9
+│   └── appendix.tex          # Appendix — Sample queries by category
 ├── figures/
 │   └── table_*.tex           # Generated LaTeX tables (7 total)
 └── scripts/
@@ -72,12 +73,12 @@ This reads from `benchmarks/results/*.json` and writes 7 `.tex` files into `figu
 
 | Metric | Value |
 |--------|-------|
-| Model–domain combinations improved | 19/19 |
-| Avg ΔF1 (graph − baseline) | +0.33 |
+| Model–domain combinations improved | 20/20 |
+| Avg ΔF1 (graph − baseline) | +0.323 |
+| Bootstrap 95% CI on mean ΔF1 | [+0.27, +0.37] |
 | Hallucinated tools (graph) | 0 (structural guarantee) |
-| R_wrong (fault tolerance) | 0.415 |
+| R_wrong (fault tolerance) | 0.292 |
 | Entity pruning range | 56–87% |
-| Tool space reduction | 97–99% |
 | Domains | 5 (54–170 tools each) |
 | Models | 4 (8B–20B+ params) |
 | Total queries | 140 |
