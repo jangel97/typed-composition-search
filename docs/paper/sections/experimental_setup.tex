@@ -4,17 +4,17 @@
 \subsection{Domains}
 \label{sec:domains}
 
-We evaluate on five tool domains spanning infrastructure operations and e-commerce, chosen to cover diverse graph topologies (Table~\ref{tab:domain-stats}).
+We evaluate on five tool domains spanning infrastructure operations and e-commerce, chosen to cover a range of graph topologies (Table~\ref{tab:domain-stats}).
 
 \input{figures/table_domain_stats}
 
 The domains vary along three dimensions relevant to our hypotheses:
 \textbf{catalog size} (54--170 tools), \textbf{type density} (types-to-tools ratio from 30\% to 94\%), and \textbf{graph sparsity} (average entity pruning from 56\% to 87\%).
-CI/CD is the critical test case: with 51 types for 54 tools (94\% ratio), the type space provides almost no label reduction, yet achieves the highest entity pruning (87\%).
-This demonstrates that the graph constraint operates through topology, not label count.
+CI/CD is the most informative test case: with 51 types for 54 tools (94\% ratio), the type space provides almost no label reduction, yet achieves the highest entity pruning (87\%).
+This shows that the graph constraint operates through topology, not label count.
 
 Tool registries for Kubernetes, Ansible, GitHub, and CI/CD are constructed from their respective API documentation and operational patterns.
-Shopify tools are derived from the Shopify Admin REST API, providing a non-infrastructure domain for generalization evidence.
+Shopify tools are derived from the Shopify Admin REST API, providing a non-infrastructure domain to test generalization.
 
 \subsection{Models}
 \label{sec:models}
@@ -29,7 +29,7 @@ We evaluate four language models spanning different scales and architectures:
 \end{itemize}
 
 All models are used off-the-shelf without fine-tuning.
-This is intentional: our method should work with any model that can classify entity types from natural language, including models not specifically trained for tool use.
+Our method should work with any model that can classify entity types from natural language, including models not trained for tool use.
 
 \subsection{Query Categories}
 \label{sec:query-categories}
@@ -65,5 +65,5 @@ We compare six routing strategies:
 \label{sec:metrics}
 
 We report \textbf{precision}, \textbf{recall}, and \textbf{F1} computed over tool sets (predicted vs.\ expected).
-We additionally report \textbf{hallucinated tool count}: tools returned by the model that do not exist in the registry.
+We also report \textbf{hallucinated tool count}: tools returned by the model that do not exist in the registry.
 For type prediction, we report source accuracy, target accuracy, and exact match (both correct).

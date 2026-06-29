@@ -191,8 +191,8 @@ def table_recall_decomposition(data):
 
     avg_rwrong = sum(all_rwrong) / len(all_rwrong) if all_rwrong else 0
     lines.append(r"\caption{Recall decomposition: $\hat{R} = P(\text{correct}) \cdot R_{\text{correct}} + P(\text{wrong}) \cdot R_{\text{wrong}}$. "
-                 f"Average $R_{{\\text{{wrong}}}}$ = {avg_rwrong:.3f}, indicating fault tolerance: "
-                 r"incorrect type predictions often recover part of the correct tool chain through nearby graph paths.}")
+                 f"$R_{{\\text{{wrong}}}}$ is consistently above zero (avg.\\ {avg_rwrong:.3f}, range 0.10--0.65): "
+                 r"performance degrades gracefully under type prediction errors rather than collapsing.}")
     lines.append(r"\label{tab:recall-decomposition}")
     lines.append(r"\end{table*}")
     return "\n".join(lines)
@@ -372,7 +372,7 @@ def table_hallucinations(data):
     lines.append(r"\bottomrule")
     lines.append(r"\end{tabular}")
     lines.append(r"\caption{Total hallucinated tools across all domains. "
-                 r"Graph routing produces zero hallucinations --- a structural guarantee, not a statistical trend.}")
+                 r"Graph routing produces zero hallucinations because tools are limited to graph edges.}")
     lines.append(r"\label{tab:hallucinations}")
     lines.append(r"\end{table}")
     return "\n".join(lines)

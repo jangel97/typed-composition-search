@@ -49,6 +49,13 @@ def match_type_name(text: str, type_names: list[str]) -> str | None:
     type_map = {name.lower(): name for name in type_names}
     if text.lower() in type_map:
         return type_map[text.lower()]
+    first_line = text.split("\n")[0].strip().rstrip(".")
+    if first_line.lower() in type_map:
+        return type_map[first_line.lower()]
+    text_lower = text.lower()
+    for name_lower in sorted(type_map, key=len, reverse=True):
+        if text_lower.startswith(name_lower):
+            return type_map[name_lower]
     return None
 
 

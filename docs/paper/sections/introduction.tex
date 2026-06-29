@@ -1,72 +1,150 @@
+```latex
 \section{Introduction}
 \label{sec:introduction}
 
-LLM-based agents increasingly interact with external tool ecosystems to accomplish real-world tasks \cite{yao2023react, shen2024hugginggpt}.
-As these ecosystems grow from tens to hundreds of tools, \emph{tool routing}---determining which tools to invoke for a given query---becomes a critical bottleneck.
-Direct tool selection, where the LLM chooses from the full catalog, degrades in accuracy, introduces hallucinated tool invocations, and scales poorly with catalog size \cite{li2025toolscope, qin2023toolllm}.
+Large Language Model (LLM) agents increasingly rely on external tools to answer questions and perform real-world tasks \cite{yao2023react, shen2024hugginggpt}. Modern tool ecosystems routinely contain tens or hundreds of APIs spanning cloud platforms, software development, infrastructure automation, and enterprise operations. As these ecosystems grow, \emph{tool routing} (determining which tools should be invoked to satisfy a user query) becomes increasingly challenging.
 
-We argue that the fundamental issue is the \emph{abstraction}: framing tool routing as tool selection forces the model to simultaneously identify relevant tools, determine their ordering, and ensure compositional validity---all in a single unconstrained decision.
+Existing approaches typically formulate routing as \emph{direct tool selection}: given a natural language query, the LLM selects tools directly from the full catalog \cite{li2025toolscope, qin2023toolllm}. This formulation requires the model to simultaneously identify relevant tools, infer multi-step compositions, and ensure that the resulting sequence is executable, all in a single unconstrained decision. As tool catalogs grow, this reasoning problem becomes increasingly difficult and may result in missed tool compositions or structurally invalid tool invocations.
+
+We argue that the primary bottleneck is not merely the number of available tools, but the \emph{abstraction} itself. Direct tool routing conflates two fundamentally different reasoning tasks:
+
+\begin{itemize}
+    \item \textbf{Semantic reasoning:} What entities does the user refer to?
+    \item \textbf{Compositional reasoning:} Which sequence of tool transformations connects those entities?
+\end{itemize}
+
+Treating both problems as a single prediction forces the LLM to reason simultaneously about meaning and execution.
 
 \begin{figure*}[t]
 \centering
 \begin{tikzpicture}[
     node distance=0.5cm,
-    box/.style={rectangle, draw, rounded corners=2pt, minimum width=2.8cm, minimum height=0.6cm, font=\small, align=center},
+    box/.style={
+        rectangle,
+        draw,
+        rounded corners=2pt,
+        minimum width=2.8cm,
+        minimum height=0.6cm,
+        font=\small,
+        align=center
+    },
     arrow/.style={-{Stealth[length=4pt]}, thick},
     annot/.style={font=\footnotesize\itshape, text=gray!70!black}
 ]
 
-% Traditional approach (left)
+% --------------------------------------------------------------------
+% Traditional approach
+% --------------------------------------------------------------------
+
 \node[font=\small\bfseries] (trad-title) {Traditional Tool Routing};
 
 \node[box, below=0.4cm of trad-title, fill=blue!8] (query1) {Query};
-\node[box, below=0.5cm of query1, fill=orange!10, minimum width=3.2cm, minimum height=1.0cm] (llm1) {LLM\\{\scriptsize choose from 135 tools}};
+
+\node[
+    box,
+    below=0.5cm of query1,
+    fill=orange!10,
+    minimum width=3.2cm,
+    minimum height=1.0cm
+] (llm1) {LLM\\{\scriptsize Unconstrained tool selection}};
+
 \node[box, below=0.5cm of llm1, fill=red!8] (tools1) {Selected tools};
 
 \draw[arrow] (query1) -- (llm1);
 \draw[arrow] (llm1) -- (tools1);
 
-\node[annot, below=0.15cm of tools1] (prob1) {hallucinations, missed steps, F1 $\approx$ 0.50};
+\node[annot, below=0.15cm of tools1]
+{hallucinations, missed compositions, no validity guarantee};
 
+% --------------------------------------------------------------------
 % Divider
-\draw[dashed, gray!50, line width=0.5pt] (4.2, 0.5) -- (4.2, -4.5);
+% --------------------------------------------------------------------
 
-% Our approach (right)
-\node[font=\small\bfseries, right=5.5cm of trad-title] (our-title) {Typed Composition Search};
+\draw[dashed, gray!50, line width=0.5pt]
+(4.2,0.5) -- (4.2,-4.5);
+
+% --------------------------------------------------------------------
+% Typed Composition Search
+% --------------------------------------------------------------------
+
+\node[
+    font=\small\bfseries,
+    right=5.5cm of trad-title
+] (our-title) {Typed Composition Search};
 
 \node[box, below=0.4cm of our-title, fill=blue!8] (query2) {Query};
-\node[box, below=0.5cm of query2, fill=green!10, minimum width=3.5cm] (types) {LLM: predict types\\{\scriptsize (Namespace, PodLogs)}};
-\node[box, below=0.5cm of types, fill=yellow!8, minimum width=3.5cm] (graph) {Graph BFS\\{\scriptsize Namespace $\to$ Pod $\to$ PodLogs}};
-\node[box, below=0.5cm of graph, fill=green!15] (tools2) {3 tools returned};
+
+\node[
+    box,
+    below=0.5cm of query2,
+    fill=green!10,
+    minimum width=3.5cm
+] (types)
+{
+Semantic reasoning (LLM)\\
+{\scriptsize Predict entity types}
+};
+
+\node[
+    box,
+    below=0.5cm of types,
+    fill=yellow!8,
+    minimum width=3.5cm
+] (graph)
+{
+Compositional reasoning (Graph)\\
+{\scriptsize Recover tool chain}
+};
+
+\node[
+    box,
+    below=0.5cm of graph,
+    fill=green!15
+] (tools2)
+{
+Valid tool chain
+};
 
 \draw[arrow] (query2) -- (types);
 \draw[arrow] (types) -- (graph);
 \draw[arrow] (graph) -- (tools2);
 
-\node[annot, below=0.15cm of tools2] (prob2) {0 hallucinations, auto multi-hop, F1 $\approx$ 0.85};
+\node[annot, below=0.15cm of tools2]
+{structural validity guaranteed};
 
 \end{tikzpicture}
-\caption{Approach comparison. \textbf{Left:} Traditional tool routing selects from the full catalog in a single unconstrained step. \textbf{Right:} Typed Composition Search predicts entity types, then recovers the tool sequence through graph search. The graph guarantees compositional validity and eliminates hallucinated tools.}
+
+\caption{
+\textbf{Left:} Traditional tool routing selects tools from the full catalog in a single unconstrained reasoning step.
+\textbf{Right:} Typed Composition Search separates semantic reasoning (entity type prediction, performed by the LLM) from compositional reasoning (tool path recovery, performed by graph search). Tool chains are recovered only from valid paths in the typed graph, guaranteeing compositional validity. Consequently, end-to-end errors primarily arise from entity type prediction rather than unconstrained tool selection.
+}
+
 \label{fig:approach}
 \end{figure*}
 
-We propose \textbf{Typed Composition Search}, a reformulation that decomposes tool routing into \emph{entity type prediction} and \emph{graph-based path recovery} (Figure~\ref{fig:approach}).
-Tools are modeled as typed transformations between entity types (e.g., \texttt{get\_pod\_logs}: \texttt{Pod} $\rightarrow$ \texttt{PodLogs}), forming a directed graph where entity types are nodes and tools are edges.
-Given a query, the LLM predicts the source and target entity types; breadth-first search on the graph recovers the tool sequence.
+We propose \textbf{Typed Composition Search}, a reformulation of tool routing that explicitly separates these two reasoning problems (Figure~\ref{fig:approach}). Tools are modeled as typed transformations between entity types (e.g., \texttt{get\_pod\_logs}: \texttt{Pod} $\rightarrow$ \texttt{PodLogs}), forming a directed graph where entity types are nodes and tools are edges. Given a user query, the LLM predicts the source and target entity types, after which graph search deterministically recovers the corresponding tool composition.
 
-This decomposition separates semantic reasoning (what entities does the user mean?) from compositional reasoning (what tools connect those entities?), assigning each to the mechanism best suited for it.
+This decomposition shifts the LLM from selecting executable tools to predicting semantic entities, while delegating composition to a deterministic graph algorithm. Rather than asking the model to discover valid workflows directly, Typed Composition Search asks it to identify the entities involved, allowing the graph to recover the execution path.
 
-We evaluate this approach across four models (8B--20B parameters plus one proprietary), five tool domains (54--170 tools), and 140 queries in six difficulty categories.
+We evaluate the proposed formulation across multiple language models, tool ecosystems, and routing strategies spanning a diverse collection of enterprise domains. Our experiments demonstrate consistent improvements over direct tool selection while providing a simple analytical decomposition that explains end-to-end routing performance in terms of entity prediction accuracy and graph resolution.
+
 Our contributions are:
 
 \begin{enumerate}
-    \item \textbf{Formulation.} We reformulate tool routing as typed entity reasoning, shifting the LLM's task from tool selection to entity classification.
 
-    \item \textbf{Execution model.} We propose a typed graph execution model combining entity prediction with deterministic graph search. No training, fine-tuning, or embedding computation is required.
+\item \textbf{Problem reformulation.}
+We reformulate tool routing as typed entity reasoning, shifting the LLM's responsibility from direct tool selection to entity type prediction.
 
-    \item \textbf{Analytical decomposition.} We show that end-to-end recall decomposes into type prediction accuracy and graph reachability (Eq.~\ref{eq:recall-decomposition}), enabling targeted failure analysis.
+\item \textbf{Typed graph execution model.}
+We introduce a deterministic execution model that combines entity prediction with graph search to recover valid tool compositions without training, fine-tuning, or embedding retrieval.
 
-    \item \textbf{Benchmark.} We provide a comprehensive evaluation across 4 models, 5 domains, and 6 routing strategies, covering 140 queries in 6 difficulty categories.
+\item \textbf{Analytical decomposition.}
+We show that end-to-end routing recall decomposes into entity prediction accuracy and graph reachability, enabling targeted analysis of routing failures.
 
-    \item \textbf{Empirical evidence.} Graph routing consistently improves tool selection (19/19 model--domain combinations, avg.\ $\Delta$F1 = +0.33) while eliminating structurally invalid tool calls.
+\item \textbf{Comprehensive benchmark.}
+We evaluate four language models across five tool domains, six routing strategies, and 140 benchmark queries covering multiple routing difficulty categories.
+
+\item \textbf{Empirical validation.}
+We demonstrate that Typed Composition Search consistently improves routing performance while constraining all recovered tool chains to valid graph paths.
+
 \end{enumerate}

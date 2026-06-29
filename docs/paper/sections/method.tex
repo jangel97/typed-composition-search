@@ -53,7 +53,7 @@ The LLM handles semantic reasoning (what entity types does the user mean?), whil
 \subsection{Tools as Typed Transformations}
 \label{sec:typed-tools}
 
-The key observation is that most tools in structured domains operate on well-defined entity types.
+Most tools in structured domains operate on well-defined entity types.
 A tool consumes an entity of one type and produces an entity of another.
 For example, in a Kubernetes tool catalog:
 
@@ -64,7 +64,7 @@ For example, in a Kubernetes tool catalog:
 \end{itemize}
 
 A query like ``Get the logs for pods in the production namespace'' implicitly defines a path from \texttt{Namespace} to \texttt{PodLogs}.
-The tools along this path---\texttt{list\_pods}, \texttt{select\_pod}, \texttt{get\_pod\_logs}---emerge from graph traversal rather than direct selection.
+The tools along this path (\texttt{list\_pods}, \texttt{select\_pod}, \texttt{get\_pod\_logs}) emerge from graph traversal rather than direct selection.
 
 
 \subsection{Graph Construction}
@@ -89,7 +89,7 @@ BFS is deterministic and model-independent: given the same graph and type predic
 This separates routing correctness into two independent factors: (1) whether the LLM predicted the right types, and (2) whether the graph contains a valid path.
 
 When no path exists (disconnected types), the system returns an empty result rather than hallucinating tools.
-This is an intentional design choice: returning nothing is safer than returning structurally invalid tool sequences, particularly in high-stakes domains.
+Returning nothing is safer than returning structurally invalid tool sequences, particularly in infrastructure and operational domains.
 
 
 \subsection{Entity-Based Routing}
@@ -103,14 +103,13 @@ The full routing procedure works as follows:
     \item Return the ordered tool sequence along the path.
 \end{enumerate}
 
-The LLM chooses from $|\mathcal{E}|$ entity types rather than $|\mathcal{T}|$ tools, but the primary benefit is not the reduced label count.
-The benefit is \emph{graph-constrained decision making}: after predicting one type, graph reachability constrains the valid choices for the other.
+The LLM chooses from $|\mathcal{E}|$ entity types rather than $|\mathcal{T}|$ tools, but the primary benefit is \emph{graph-constrained decision making}, not the reduced label count: after predicting one type, graph reachability constrains the valid choices for the other.
 
 
 \subsection{Graph Constraint and Entity Pruning}
 \label{sec:graph-constraint}
 
-We quantify the constraining effect of the graph with the \textbf{entity pruning} metric.
+We quantify how much the graph constrains the decision space with the \textbf{entity pruning} metric.
 For a given target type $e_{\text{tgt}}$, let $R^{-1}(e_{\text{tgt}}) \subseteq \mathcal{E}$ be the set of types from which $e_{\text{tgt}}$ is reachable via any path in $G$.
 The entity pruning is:
 \begin{equation}

@@ -4,23 +4,20 @@
 \subsection{Tool Routing}
 \label{sec:tool-routing}
 
-As LLM-based agents integrate with external tool ecosystems, \textbf{tool routing}---determining which tools to invoke for a given query---becomes a bottleneck.
-Small catalogs (5--20 tools) can be presented entirely in the LLM's context window, but production environments often expose hundreds of tools \cite{qin2023toolllm}.
-At this scale, including the full catalog degrades accuracy, increases token cost, and introduces hallucinated tool invocations \cite{li2025toolscope}.
-
 Tool routing is typically framed as a selection problem: given a query $q$ and a tool catalog $\mathcal{T}$, select a subset $\{t_1, \ldots, t_k\} \subseteq \mathcal{T}$.
-When the task requires multi-step composition (e.g., ``get the logs for pods in a namespace'' requires listing pods, selecting one, then retrieving logs), the model must additionally determine the correct ordering.
+Small catalogs (5--20 tools) fit in the LLM's context window, but production environments often expose hundreds of tools \cite{qin2023toolllm}, and including the full catalog loses accuracy, increases token cost, and produces hallucinated tool invocations \cite{li2025toolscope}.
+When the task requires multi-step composition (e.g., ``get the logs for pods in a namespace'' requires listing pods, selecting one, then retrieving logs), the model must also determine the correct ordering.
 
 \subsection{Existing Approaches}
 \label{sec:existing-approaches}
 
 \paragraph{Direct Selection.}
 The simplest approach presents all tool descriptions to the LLM and lets it select which to call \cite{schick2024toolformer, patil2023gorilla}.
-This works well for small catalogs but scales poorly: context length grows linearly with catalog size, and the model must reason about tool compatibility without structural guidance.
+This works for small catalogs but scales poorly: context length grows linearly with catalog size, and the model must reason about tool compatibility without structural guidance.
 
 \paragraph{Retrieval-Based Routing.}
-Embedding-based retrieval reduces the candidate set by finding tools whose descriptions are semantically similar to the query \cite{li2025toolscope}.
-This addresses the scalability problem but not the compositionality problem: retrieved tools are semantically similar to the query but not necessarily compositionally valid together.
+Embedding-based retrieval reduces the candidate set by returning tools whose descriptions are semantically similar to the query \cite{li2025toolscope}.
+This addresses scalability but not compositionality: retrieved tools are similar to the query but not necessarily valid together in a tool chain.
 
 \paragraph{Graph-Based Planning.}
 Several recent systems use graph structures to guide tool composition.
@@ -29,7 +26,7 @@ ControlLLM \cite{zhang2024controlllm} builds a tool graph and uses search to fin
 GNN4Plan \cite{wang2024gnn4plan} trains graph neural networks to predict tool sequences.
 GRAFT \cite{li2025graft} tokenizes graph structure and fine-tunes an LLM on graph-augmented representations.
 
-These approaches demonstrate the value of graph structure, but most require task-specific training or complex pipeline architectures.
+These approaches use graph structure effectively, but most require task-specific training or complex pipeline architectures.
 
 \subsection{Why Entities}
 \label{sec:why-entities}
@@ -40,7 +37,7 @@ The mapping from entity types to tools is deterministic given a typed tool regis
 
 This suggests a separation of concerns: the LLM should reason about \emph{what} the user wants (entity types), while a structural mechanism should determine \emph{how} to get there (tool composition).
 
-The benefit of this decomposition is not simply that there are fewer entity types than tools---in some domains the counts are nearly equal (Section~\ref{sec:experimental-setup}).
+The benefit of this decomposition is not that there are fewer entity types than tools (in some domains the counts are nearly equal; Section~\ref{sec:experimental-setup}).
 The benefit is that graph reachability \emph{constrains} each prediction step.
 After predicting a target entity type, reverse reachability in the graph eliminates source types that cannot reach the target through any valid tool composition.
 We measure this effect through entity pruning (Section~\ref{sec:graph-constraint}) and find 56--87\% average pruning across five domains, including a domain where entity types and tools are in near-parity.

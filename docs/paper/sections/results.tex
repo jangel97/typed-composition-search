@@ -8,12 +8,12 @@ Table~\ref{tab:main-results} presents the primary comparison between baseline (d
 
 \input{figures/table_main_results}
 
-Graph routing outperforms the baseline in all 19 combinations where both strategies produced results (average $\Delta$F1 = +0.329).
-The improvement is consistent across models and domains, with the largest gains in domains where baseline performance is weakest (Ansible: +0.34 to +0.47, GitHub: +0.25 to +0.54).
+Graph routing outperforms the baseline in all 20 model--domain combinations (average $\Delta$F1 = +0.323).
+The improvement holds across models and domains, with the largest gains where baseline performance is weakest (Ansible: +0.34 to +0.47, GitHub: +0.25 to +0.54).
 
 Table~\ref{tab:strategy-comparison} compares all strategies.
-Retrieval-based routing provides modest improvements over the baseline but substantially underperforms graph routing.
-The oracle strategy (graph search with ground-truth types) achieves F1 = 1.000 across all domains, confirming that the graph structure itself has no coverage gaps---every query has a valid BFS path.
+Retrieval-based routing provides modest improvements over the baseline but falls well short of graph routing.
+The oracle strategy (graph search with ground-truth types) achieves F1 = 1.000 across all domains: the graph has no coverage gaps, and every query has a valid BFS path.
 
 \input{figures/table_strategy_comparison}
 
@@ -24,7 +24,7 @@ The oracle strategy (graph search with ground-truth types) achieves F1 = 1.000 a
 \input{figures/table_hallucinations}
 
 All graph-constrained strategies produce zero hallucinated tools across all model--domain combinations (Table~\ref{tab:hallucinations}).
-This is a structural guarantee: tools are limited to edges in the typed composition graph, so no tool outside the registry can appear in the output.
+This follows from the structure: tools are limited to edges in the typed composition graph, so no tool outside the registry can appear in the output.
 In contrast, the baseline produces hallucinated tools in most runs, with totals ranging from 6 to 23 across domains per model.
 
 
@@ -37,15 +37,16 @@ Table~\ref{tab:recall-decomposition} presents the recall decomposition from Eq.~
 
 \paragraph{The decomposition fits.}
 The gap between predicted recall $\hat{R}$ and actual recall $R_{\text{actual}}$ is small across all combinations (median $\approx$ 0.04).
-End-to-end performance is well explained by the product of type prediction accuracy and graph reachability.
+The product of type prediction accuracy and graph reachability accounts for most of the end-to-end performance.
 
-\paragraph{Fault tolerance.}
-Surprisingly, incorrect type predictions often still recover part of the correct tool chain.
-The average $R_{\text{wrong}}$ across all combinations is 0.415, substantially above zero.
-This occurs because nearby entity types---parents, siblings, or neighbors in the graph---remain connected through overlapping paths.
+\paragraph{Graceful degradation.}
+The decomposition reveals that performance does not collapse when type prediction is wrong.
+$R_{\text{wrong}}$ averages 0.292 across all combinations (range: 0.10--0.65), meaning incorrect type predictions still recover some of the correct tool chain rather than producing zero recall.
+This occurs because nearby entity types (parents, siblings, or neighbors in the graph) remain connected through overlapping paths.
 When the LLM predicts a wrong but ``nearby'' type (e.g., \texttt{Deployment} instead of \texttt{Namespace}), BFS may still traverse through some of the correct tools.
 
-This finding contradicts the simplified assumption $R_{\text{wrong}} \approx 0$ but is a positive result: the typed composition graph exhibits intrinsic fault tolerance to type prediction errors.
+This contradicts the simplified assumption $R_{\text{wrong}} \approx 0$.
+The qualitative property matters more than the specific average: the graph degrades gracefully under prediction errors rather than failing completely.
 
 
 \subsection{Type Prediction Accuracy}
@@ -55,10 +56,10 @@ This finding contradicts the simplified assumption $R_{\text{wrong}} \approx 0$ 
 
 Table~\ref{tab:type-prediction} reports type prediction accuracy by query category.
 Source prediction (0.71 overall accuracy) is harder than target prediction (0.81).
-This aligns with the intuition that users describe desired \emph{outcomes} (targets) more reliably than \emph{starting points} (sources).
+This matches the intuition that users describe desired \emph{outcomes} (targets) more clearly than \emph{starting points} (sources).
 
-Clean queries achieve 83\% exact match, while ambiguous queries are hardest (26\%)---the target entity type is genuinely uncertain for these queries.
-Synonym queries show reduced target accuracy (0.61), indicating that alternative terminology sometimes maps to incorrect entity types.
+Clean queries achieve 83\% exact match, while ambiguous queries are hardest (26\%), since the target entity type is genuinely uncertain for these queries.
+Synonym queries show reduced target accuracy (0.61); alternative terminology sometimes maps to the wrong entity type.
 
 
 \subsection{Entity Pruning (H2)}
@@ -69,16 +70,16 @@ Synonym queries show reduced target accuracy (0.61), indicating that alternative
 Table~\ref{tab:entity-pruning} reports entity pruning statistics per domain.
 The median pruning across all domains is 75\%, meaning that for a typical query, three-quarters of entity types are eliminated as source candidates after target prediction.
 
-The CI/CD domain provides the strongest evidence for H2: with 51 types for 54 tools (near-parity), the type space offers almost no label reduction, yet entity pruning averages 87\% with a minimum of 76\%.
+CI/CD provides the clearest evidence for H2: with 51 types for 54 tools (near-parity), the type space offers almost no label reduction, yet entity pruning averages 87\% with a minimum of 76\%.
 Even the hardest query in CI/CD constrains the source prediction to at most 12 out of 51 candidates.
 
 Entity pruning is a graph-topological property, independent of the language model.
-It represents a guaranteed reduction in the decision space that applies to any model performing type prediction.
+It applies to any model performing type prediction.
 
 
 \subsection{Token Efficiency}
 \label{sec:token-efficiency}
 
 Graph-based routing uses 500--900 prompt tokens per query, compared to 1,500--3,000 for the baseline.
-This 50--70\% reduction results from presenting only path-relevant entity types and tools instead of the full catalog.
+This 50--70\% reduction comes from presenting only path-relevant entity types and tools instead of the full catalog.
 The token savings scale with catalog size: larger registries produce proportionally greater reductions.

@@ -11,11 +11,11 @@ Our work shifts the classification target from tools to entity types and uses gr
 \paragraph{Graph-Based Tool Planning.}
 PLaG \cite{lin2024plag} serializes a task dependency graph into the LLM prompt for code generation.
 ControlLLM \cite{zhang2024controlllm} is the closest work to ours: it constructs a tool graph and uses search to find valid tool chains for multimodal pipelines.
-However, ControlLLM involves full task decomposition, parallel scheduling, and resource management---substantially more complex than our approach, which uses only type prediction and BFS.
+However, ControlLLM involves full task decomposition, parallel scheduling, and resource management, which is substantially more complex than our approach (type prediction and BFS only).
 
 GNN4Plan \cite{wang2024gnn4plan} trains graph neural networks to predict tool sequences, requiring task-specific training data.
 GRAFT \cite{li2025graft} tokenizes graph structure and fine-tunes an LLM on graph-augmented representations.
-Notably, GRAFT reports that constrained graph search achieves ``perfect dependency legality'' but dismisses it due to lower exact match.
+GRAFT reports that constrained graph search achieves ``perfect dependency legality'' but dismisses it due to lower exact match.
 Our work argues that better entity type prediction can close this gap without training.
 
 GAP \cite{li2025gap} combines graph planning with reinforcement learning for tool use.
@@ -25,8 +25,8 @@ Our method works with any off-the-shelf LLM, making it complementary rather than
 \paragraph{Compositional Reasoning.}
 HuggingGPT \cite{shen2024hugginggpt} and Chameleon \cite{lu2024chameleon} compose tools for complex tasks through LLM-driven planning.
 ReAct \cite{yao2023react} interleaves reasoning and acting but does not leverage structural constraints on tool composition.
-Our typed graph provides deterministic composition guarantees that these approaches lack.
+Our typed graph provides deterministic composition guarantees that these approaches do not have.
 
 \paragraph{Positioning.}
-Our work fills a gap between retrieval-based routing (no structural constraints, no training) and trained graph models (strong constraints, training required).
-Typed Composition Search provides structural constraints---zero hallucinations, guaranteed compositional validity---without any training, making it the simplest structural approach in this space.
+Our work sits between retrieval-based routing (no structural constraints, no training) and trained graph models (strong constraints, training required).
+Typed Composition Search provides structural constraints (zero hallucinations, guaranteed compositional validity) without training, making it the simplest structural approach in this space.

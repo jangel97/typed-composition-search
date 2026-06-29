@@ -8,8 +8,8 @@
 Granite-8B & Kubernetes & 0.600 & 0.867 & 0.225 & 0.610 & 0.847 & 0.237 \\
  & Ansible & 0.567 & 0.912 & 0.397 & 0.689 & 0.827 & 0.138 \\
  & GitHub & 0.633 & 0.947 & 0.447 & 0.764 & 0.881 & 0.118 \\
- & CI/CD & -- & -- & -- & -- & -- & -- \\
- & Shopify & -- & -- & -- & -- & -- & -- \\
+ & CI/CD & 0.269 & 1.000 & 0.237 & 0.442 & 0.719 & 0.276 \\
+ & Shopify & 0.655 & 0.947 & 0.367 & 0.747 & 0.903 & 0.156 \\
 \midrule
 Qwen3-14B & Kubernetes & 0.640 & 0.875 & 0.139 & 0.610 & 0.897 & 0.287 \\
  & Ansible & 0.533 & 0.938 & 0.119 & 0.556 & 0.694 & 0.139 \\
@@ -30,6 +30,6 @@ Haiku-4.5 & Kubernetes & 0.680 & 0.824 & 0.156 & 0.610 & 0.897 & 0.287 \\
  & Shopify & 0.897 & 1.000 & 0.111 & 0.908 & 0.940 & 0.032 \\
 \bottomrule
 \end{tabular}
-\caption{Recall decomposition: $\hat{R} = P(\text{correct}) \cdot R_{\text{correct}} + P(\text{wrong}) \cdot R_{\text{wrong}}$. Average $R_{\text{wrong}}$ = 0.291, indicating fault tolerance: incorrect type predictions often recover part of the correct tool chain through nearby graph paths.}
+\caption{Recall decomposition: $\hat{R} = P(\text{correct}) \cdot R_{\text{correct}} + P(\text{wrong}) \cdot R_{\text{wrong}}$. $R_{\text{wrong}}$ is consistently above zero (avg.\ 0.292, range 0.10--0.65): performance degrades gracefully under type prediction errors rather than collapsing.}
 \label{tab:recall-decomposition}
 \end{table*}
