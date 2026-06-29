@@ -8,24 +8,31 @@ Table~\ref{tab:main-results} presents the primary comparison between baseline (d
 
 \input{figures/table_main_results}
 
-Graph routing outperforms the baseline in all 20 model--domain combinations (average $\Delta$F1 = +0.323).
-The improvement holds across models and domains, with the largest gains where baseline performance is weakest (Ansible: +0.34 to +0.47, GitHub: +0.25 to +0.54).
+Graph routing improves F1 in every model--domain combination (20/20, average $\Delta$F1 = +0.323), indicating that the benefit is consistent across both models and domains rather than being driven by a particular benchmark configuration.
+The largest gains appear where baseline performance is weakest (Ansible: +0.34 to +0.47, GitHub: +0.25 to +0.54), suggesting that graph constraints are most valuable when unconstrained tool selection is hardest.
 
-Table~\ref{tab:strategy-comparison} compares all strategies.
+Table~\ref{tab:strategy-comparison} compares all six routing strategies.
 Retrieval-based routing provides modest improvements over the baseline but falls well short of graph routing.
-The oracle strategy (graph search with ground-truth types) achieves F1 = 1.000 across all domains: the graph has no coverage gaps, and every query has a valid BFS path.
+Retrieval reduces the search space by filtering semantically similar tools, but does not enforce compositional validity.
+The retrieved tools may be individually relevant but not necessarily composable into a valid workflow, which is precisely the problem that the typed graph addresses.
+
+The oracle strategy (graph search with ground-truth entity types) achieves F1 = 1.000 across all five domains.
+Crucially, it confirms that the typed composition graph has complete coverage, that every benchmark workflow is representable as a graph path, and that all remaining routing errors originate from entity type prediction rather than from limitations of the graph structure itself.
 
 \input{figures/table_strategy_comparison}
 
 
-\subsection{Zero Hallucinations}
+\subsection{Structural Validity}
 \label{sec:hallucinations}
 
 \input{figures/table_hallucinations}
 
 All graph-constrained strategies produce zero hallucinated tools across all model--domain combinations (Table~\ref{tab:hallucinations}).
-This follows from the structure: tools are limited to edges in the typed composition graph, so no tool outside the registry can appear in the output.
-In contrast, the baseline produces hallucinated tools in most runs, with totals ranging from 6 to 23 across domains per model.
+Unlike the baseline, this is not an empirical observation but a structural property of the algorithm: graph search can only traverse registered edges, so no tool outside the registry can appear in the output.
+In contrast, the baseline produces hallucinated tools in most runs, with totals ranging from 1 to 16 per model across domains.
+
+The distinction matters for deployment.
+A system that empirically produces few hallucinations may still hallucinate under distribution shift; a system that structurally cannot hallucinate provides stronger guarantees about the validity of generated tool sequences.
 
 
 \subsection{Recall Decomposition (H3)}
@@ -35,18 +42,18 @@ Table~\ref{tab:recall-decomposition} presents the recall decomposition from Eq.~
 
 \input{figures/table_recall_decomposition}
 
-\paragraph{The decomposition fits.}
-The gap between predicted recall $\hat{R}$ and actual recall $R_{\text{actual}}$ is small across all combinations (median $\approx$ 0.04).
-The product of type prediction accuracy and graph reachability accounts for most of the end-to-end performance.
+The decomposition separates end-to-end routing performance into two independent factors: semantic prediction quality (whether the LLM identifies the correct entity types) and graph recoverability (whether the graph contains a valid path between those types).
+The gap between predicted recall $\hat{R}$ and actual recall $R_{\text{actual}}$ has a median of 0.14 across all combinations, suggesting that these two factors explain most of the observed routing behavior.
+
+Rather than treating routing performance as a single opaque metric, the decomposition identifies where improvements should be directed: type prediction for the LLM, and graph coverage for the ontology.
 
 \paragraph{Graceful degradation.}
-The decomposition reveals that performance does not collapse when type prediction is wrong.
+The decomposition also reveals that performance does not collapse when type prediction is wrong.
 $R_{\text{wrong}}$ averages 0.292 across all combinations (range: 0.10--0.65), meaning incorrect type predictions still recover some of the correct tool chain rather than producing zero recall.
-This occurs because nearby entity types (parents, siblings, or neighbors in the graph) remain connected through overlapping paths.
-When the LLM predicts a wrong but ``nearby'' type (e.g., \texttt{Deployment} instead of \texttt{Namespace}), BFS may still traverse through some of the correct tools.
 
-This contradicts the simplified assumption $R_{\text{wrong}} \approx 0$.
-The qualitative property matters more than the specific average: the graph degrades gracefully under prediction errors rather than failing completely.
+Neighboring entity types often induce overlapping paths in the typed graph.
+When the LLM predicts a wrong but nearby type (e.g., \texttt{Deployment} instead of \texttt{Namespace}), the graph path from the incorrect type may still traverse through some of the correct tools, because the two types share downstream connectivity.
+Densely connected regions of the graph provide more opportunities for partial recovery.
 
 
 \subsection{Type Prediction Accuracy}
@@ -55,11 +62,12 @@ The qualitative property matters more than the specific average: the graph degra
 \input{figures/table_type_prediction}
 
 Table~\ref{tab:type-prediction} reports type prediction accuracy by query category.
-Source prediction (0.71 overall accuracy) is harder than target prediction (0.81).
-This matches the intuition that users describe desired \emph{outcomes} (targets) more clearly than \emph{starting points} (sources).
+Source prediction (0.70 overall accuracy) is harder than target prediction (0.80).
+Users describe desired \emph{outcomes} (targets) more clearly than \emph{starting points} (sources), consistent with the semantic reasoning role assigned to the LLM in our formulation.
 
-Clean queries achieve 83\% exact match, while ambiguous queries are hardest (26\%), since the target entity type is genuinely uncertain for these queries.
+Clean queries achieve 81\% exact match, while ambiguous queries are hardest (25\%), since the target entity type is genuinely uncertain for these queries.
 Synonym queries show reduced target accuracy (0.61); alternative terminology sometimes maps to the wrong entity type.
+Improving entity prediction therefore translates directly into higher end-to-end routing performance, as the recall decomposition in Section~\ref{sec:recall-decomposition} confirms.
 
 
 \subsection{Entity Pruning (H2)}
@@ -72,6 +80,7 @@ The median pruning across all domains is 75\%, meaning that for a typical query,
 
 CI/CD provides the clearest evidence for H2: with 51 types for 54 tools (near-parity), the type space offers almost no label reduction, yet entity pruning averages 87\% with a minimum of 76\%.
 Even the hardest query in CI/CD constrains the source prediction to at most 12 out of 51 candidates.
+The benefit of Typed Composition Search therefore derives from graph topology rather than from reducing the number of prediction labels.
 
 Entity pruning is a graph-topological property, independent of the language model.
 It applies to any model performing type prediction.
@@ -81,5 +90,6 @@ It applies to any model performing type prediction.
 \label{sec:token-efficiency}
 
 Graph-based routing uses 500--900 prompt tokens per query, compared to 1,500--3,000 for the baseline.
-This 50--70\% reduction comes from presenting only path-relevant entity types and tools instead of the full catalog.
-The token savings scale with catalog size: larger registries produce proportionally greater reductions.
+The 50--70\% reduction comes from presenting only path-relevant entity types and tools instead of the full catalog.
+The savings scale naturally with catalog size: as tool registries grow, the baseline must include proportionally more tool descriptions in the prompt, while graph routing presents only the tools along the recovered path.
+The relative advantage therefore increases with catalog size, directly addressing the scalability concern raised in Section~\ref{sec:introduction}.

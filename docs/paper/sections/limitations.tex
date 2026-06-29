@@ -1,27 +1,39 @@
 \section{Limitations}
 \label{sec:limitations}
 
-\paragraph{Typed Graph Assumption.}
-Our method assumes tools can be modeled as typed transformations between entity types.
-This fits infrastructure APIs, data pipelines, and platform operations, but is less natural for side-effect tools (e.g., \texttt{send\_email}, \texttt{restart\_service}) that do not produce a typed output in the usual sense.
-These can be accommodated with terminal types (e.g., \texttt{Action}), but this introduces design choices into the type ontology.
+Typed Composition Search relies on a typed composition graph and deterministic graph search.
+While this formulation provides strong structural guarantees, it also imposes several limitations.
 
-\paragraph{Linear Composition Only.}
-BFS recovers a single shortest path, representing a linear tool chain.
-Tasks requiring branching (if/else), parallelism, or loops cannot be expressed.
-This limits the method to sequential composition patterns, which are common in tool routing but not universal.
+\paragraph{Typed Transformation Assumption.}
 
-\paragraph{BFS Through Write Operations.}
-BFS does not distinguish read and write operations.
-When a write path (e.g., \texttt{add\_host}) is shorter than a read path (e.g., \texttt{get\_hosts} $\rightarrow$ \texttt{select\_host}), BFS prefers the write path.
-This produces semantically mismatched tool chains for read-intent queries.
-Mitigations include edge weighting by intent or LLM-predicted operation type.
+Our formulation assumes that tools can be modeled as typed transformations between entity types.
+This assumption holds naturally for infrastructure APIs, platform operations, and many data-processing workflows, where tools consume one resource and produce another.
+It is less natural for imperative or side-effect operations (e.g., \texttt{send\_email} or \texttt{restart\_service}) that do not naturally expose typed outputs.
+Although such operations can be represented using terminal entity types (e.g., \texttt{Action}), doing so requires additional modeling decisions when constructing the graph.
 
-\paragraph{Ontology Quality Dependency.}
-The quality of the typed graph depends on the entity type ontology.
-Overly fine-grained types increase prediction difficulty; overly coarse types reduce graph constraint.
-Our evaluation uses manually designed ontologies; automatically constructing ontologies from API specifications (e.g., OpenAPI, GraphQL schemas) is a direction for future work.
+\paragraph{Sequential Workflows.}
 
-\paragraph{Compound Queries.}
-Queries with multiple independent intents (e.g., ``get pod logs and check node status'') map to multiple graph paths.
-Our current system handles single-intent queries; extending to compound queries would require intent decomposition.
+Typed Composition Search currently recovers a single shortest path using breadth-first search and therefore models sequential workflows only.
+Branching execution, parallel composition, iterative loops, or conditional control flow fall outside the expressiveness of the current formulation.
+Supporting richer workflow structures would require extending the graph representation beyond simple paths.
+
+\paragraph{Uniform Edge Costs.}
+
+Breadth-first search assumes that all graph edges have equal cost.
+In practice, different tool invocations may represent fundamentally different operations.
+For example, a write operation (e.g., \texttt{add\_host}) may appear on a shorter graph path than a semantically preferable read-only sequence (e.g., \texttt{get\_hosts} $\rightarrow$ \texttt{select\_host}).
+The current formulation therefore optimizes graph distance rather than semantic suitability.
+Future work could incorporate weighted graph search using operation type, execution cost, or intent-aware edge weights.
+
+\paragraph{Ontology Quality.}
+
+The effectiveness of graph routing depends on the quality of the underlying entity type ontology.
+Overly fine-grained ontologies increase the difficulty of entity prediction, whereas overly coarse ontologies weaken graph constraints by introducing unnecessary connectivity.
+Our experiments use manually constructed ontologies designed for each benchmark domain.
+Automatically deriving typed composition graphs from API specifications (e.g., OpenAPI or GraphQL schemas) remains an important direction for future work.
+
+\paragraph{Single-Intent Queries.}
+
+Our evaluation focuses on queries expressing a single objective.
+Compound requests (e.g., ``retrieve pod logs and check node status'') naturally correspond to multiple independent graph paths rather than a single workflow.
+Handling such queries would require an additional intent decomposition stage before graph search and is outside the scope of the current work.

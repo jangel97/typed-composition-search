@@ -1,32 +1,46 @@
 \section{Related Work}
 \label{sec:related-work}
 
-\paragraph{Tool Routing and Selection.}
-ToolLLM \cite{qin2023toolllm} and Gorilla \cite{patil2023gorilla} train or fine-tune models to select from large API catalogs.
-Toolformer \cite{schick2024toolformer} teaches models to decide when and how to call tools.
-ToolScope \cite{li2025toolscope} benchmarks embedding-based retrieval for tool routing.
-These approaches treat tool selection as a retrieval or classification problem over the tool space.
-Our work shifts the classification target from tools to entity types and uses graph structure to recover tool sequences.
+Existing work on tool use by language models can be broadly grouped into three directions: direct tool selection, graph-based planning, and compositional reasoning agents.
 
-\paragraph{Graph-Based Tool Planning.}
-PLaG \cite{lin2024plag} serializes a task dependency graph into the LLM prompt for code generation.
-ControlLLM \cite{zhang2024controlllm} is the closest work to ours: it constructs a tool graph and uses search to find valid tool chains for multimodal pipelines.
-However, ControlLLM involves full task decomposition, parallel scheduling, and resource management, which is substantially more complex than our approach (type prediction and BFS only).
+\paragraph{Direct Tool Selection.}
 
-GNN4Plan \cite{wang2024gnn4plan} trains graph neural networks to predict tool sequences, requiring task-specific training data.
-GRAFT \cite{li2025graft} tokenizes graph structure and fine-tunes an LLM on graph-augmented representations.
-GRAFT reports that constrained graph search achieves ``perfect dependency legality'' but dismisses it due to lower exact match.
-Our work argues that better entity type prediction can close this gap without training.
+Most tool-routing systems formulate the problem as selecting one or more tools directly from a catalog.
+ToolLLM~\cite{qin2023toolllm}, Gorilla~\cite{patil2023gorilla}, and Toolformer~\cite{schick2024toolformer} train or adapt language models to decide when and how to invoke APIs.
+ToolBench~\cite{xu2023toolbench} and API-Bank~\cite{li2023apibank} provide evaluation frameworks for tool manipulation capabilities, while ToolScope~\cite{li2025toolscope} studies embedding-based retrieval as a scalable alternative for large tool collections.
+TaskBench~\cite{shen2023taskbench} introduces a tool graph for benchmark generation, though the graph is used to construct evaluation data rather than for runtime routing.
 
-GAP \cite{li2025gap} combines graph planning with reinforcement learning for tool use.
-These trained approaches achieve strong results but require data collection and fine-tuning.
-Our method works with any off-the-shelf LLM, making it complementary rather than competitive.
+These approaches reason directly over tools, framing routing as a retrieval or classification problem in the tool space.
+In contrast, Typed Composition Search shifts semantic prediction from tools to entity types and delegates tool composition to graph search, separating semantic reasoning from structural reasoning rather than requiring the language model to solve both simultaneously.
 
-\paragraph{Compositional Reasoning.}
-HuggingGPT \cite{shen2024hugginggpt} and Chameleon \cite{lu2024chameleon} compose tools for complex tasks through LLM-driven planning.
-ReAct \cite{yao2023react} interleaves reasoning and acting but does not leverage structural constraints on tool composition.
-Our typed graph provides deterministic composition guarantees that these approaches do not have.
+\paragraph{Graph-Constrained Tool Planning.}
+
+Several recent works incorporate graph structure into tool planning.
+ControlLLM~\cite{zhang2024controlllm} constructs a tool dependency graph and searches for valid multimodal pipelines.
+PLaG~\cite{lin2024plag} serializes task graphs into prompts to guide language models during planning.
+
+Our approach differs in both objective and complexity.
+Rather than performing task decomposition, scheduling, or workflow optimization, Typed Composition Search performs only two steps: entity type prediction followed by deterministic graph search over a typed composition graph.
+The resulting system is substantially simpler while still providing structural guarantees on tool composition.
+
+Graph-native learning methods such as GNN4Plan~\cite{wang2024gnn4plan}, GRAFT~\cite{li2025graft}, and GAP~\cite{li2025gap} learn graph-aware planning through supervised learning or reinforcement learning.
+These approaches achieve strong planning performance but require task-specific training data and model optimization.
+Typed Composition Search instead operates with off-the-shelf language models and requires no additional training, making it complementary to learned graph planners rather than a replacement.
+
+\paragraph{Compositional Reasoning Agents.}
+
+General-purpose agent frameworks such as HuggingGPT~\cite{shen2024hugginggpt}, Chameleon~\cite{lu2024chameleon}, and ReAct~\cite{yao2023react} rely primarily on language-model reasoning to compose multi-step tool invocations.
+While highly flexible, these systems provide no explicit structural guarantees that generated tool sequences are compositionally valid.
+
+Typed Composition Search augments language-model reasoning with an explicit typed graph.
+The language model predicts semantic intent through entity types, while graph search guarantees that every returned workflow satisfies the typing constraints encoded in the graph.
 
 \paragraph{Positioning.}
-Our work sits between retrieval-based routing (no structural constraints, no training) and trained graph models (strong constraints, training required).
-Typed Composition Search provides structural constraints (zero hallucinations, guaranteed compositional validity) without training, making it the simplest structural approach in this space.
+
+Our work occupies a distinct point in the design space.
+
+Retrieval-based approaches require neither graph structure nor training, but provide no compositional guarantees.
+Graph-native learning approaches provide strong structural reasoning but require supervised training or reinforcement learning.
+Typed Composition Search combines structural reasoning with zero additional training by separating semantic prediction from graph-constrained composition.
+
+To our knowledge, this is the first work to formulate tool routing as typed entity prediction followed by deterministic graph search, providing structural validity guarantees while remaining compatible with arbitrary off-the-shelf language models.

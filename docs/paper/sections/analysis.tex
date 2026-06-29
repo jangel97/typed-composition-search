@@ -1,59 +1,79 @@
 \section{Analysis}
 \label{sec:analysis}
 
-\subsection{Error Taxonomy}
-\label{sec:error-taxonomy}
+\subsection{Failure Analysis}
+\label{sec:failure-analysis}
 
-Under the current graph construction, all observed end-to-end failures (recall = 0) in graph-based routing originate from incorrect type prediction rather than graph coverage gaps.
-The oracle strategy achieves F1 = 1.000 across all five domains, confirming that every query has a valid BFS path when ground-truth types are provided.
+The oracle strategy achieves F1 = 1.000 across all five domains, demonstrating that every benchmark workflow is representable in the typed composition graph.
+Under the current graph construction, every observed end-to-end routing failure therefore originates from incorrect entity type prediction rather than graph incompleteness.
 
-When the LLM predicts the correct entity types, the system always produces the correct tool sequence.
-Improvement efforts should therefore focus on type prediction quality rather than graph coverage.
+Once the correct source and target entity types are identified, graph search deterministically recovers the correct tool sequence.
+Within this benchmark, future improvements are therefore more likely to come from improving entity type prediction than from expanding graph coverage.
 
-\subsection{Regressions}
+\subsection{Regression Analysis}
 \label{sec:regressions}
 
-We observe 50 query instances across all model--domain combinations where the baseline achieves non-zero recall but graph routing achieves zero.
-All 50 are caused by type prediction failures: the LLM predicts incorrect source or target types, so BFS either finds no path or finds a path to the wrong tools.
+Across all model--domain combinations, we observe 50 query instances where the baseline achieves non-zero recall while graph routing achieves zero.
+Inspection shows that all regressions originate from incorrect source or target entity predictions.
+When type prediction fails, graph search either finds no valid path or follows a path corresponding to the wrong entity types.
 
-The graph will not hallucinate tools; it returns nothing rather than something wrong.
+This behavior reflects a conservative failure mode rather than a compositional failure.
+Instead of producing structurally invalid tool sequences, graph routing abstains from execution when the predicted entity types cannot support the desired workflow.
+
 Whether this tradeoff is desirable depends on the application.
-In infrastructure operations or financial systems, returning nothing is safer than invoking wrong tools.
-In exploratory domains, partial results from the baseline may be more useful.
+In safety-critical domains such as infrastructure automation or financial systems, returning no tool sequence may be preferable to invoking incorrect tools.
+Applications emphasizing exploration or recall may instead tolerate structurally invalid suggestions in exchange for higher coverage.
 
 \subsection{Model Effect}
 \label{sec:model-effect}
 
-In our experiments, smaller models exhibited larger improvements from graph routing.
-Granite 8B averages $\Delta$F1 = +0.365 across domains, while Qwen 14B averages +0.264.
-This is consistent with graph constraints compensating for weaker type prediction by reducing the decision space, but the observation is based on four models and should not be read as a general law.
+The smaller models evaluated in this study benefit more from graph routing than the larger models.
+Granite-8B averages $\Delta$F1 = +0.365 across domains, whereas Qwen3-14B averages +0.264.
+
+This observation is consistent with the hypothesis that structural constraints compensate for weaker semantic reasoning by reducing the effective decision space presented to the language model.
+Because this comparison involves only four evaluated models, we interpret it as preliminary evidence rather than a general scaling law.
 
 \subsection{Mechanistic Explanation}
 \label{sec:mechanistic}
 
-We measure how the graph reduces the decision space at each stage to explain the performance improvement.
+The experimental results suggest three complementary mechanisms that explain the observed improvements.
 
-\paragraph{Tool Space Reduction.}
-Graph-based routing reduces the tool candidate set by 97--99\% compared to the full catalog.
-The BFS path presents an average of 1.4--2.0 tools per query, compared to 54--170 tools in the full catalog (Table~\ref{tab:domain-stats}).
-The model sees only the tools that are structurally valid for the predicted types.
+\paragraph{Semantic Reduction.}
 
-\paragraph{Entity Space Reduction.}
-Entity pruning (Section~\ref{sec:entity-pruning}) removes 56--87\% of entity types as source candidates after target prediction.
-In CI/CD, where 51 entity types exist, a typical query constrains source prediction to at most 7 candidates (87\% pruning).
-This bound holds regardless of model quality.
+Typed Composition Search asks the language model to predict entity types rather than executable tools.
+The prediction problem is therefore expressed over the entity space instead of the tool catalog.
+Entity pruning (Section~\ref{sec:entity-pruning}) further reduces this space by eliminating unreachable source entities once the target type is known.
+Across domains, 56--87\% of entity types are removed before source prediction.
+This reduction is entirely determined by graph topology and is independent of model quality.
 
-\paragraph{Structural Validity.}
-Every tool sequence returned by graph routing is compositionally valid by construction: the output type of each tool matches the input type of the next.
-The baseline has no such guarantee, which accounts for its hallucinated tool invocations (Table~\ref{tab:hallucinations}).
+\paragraph{Structural Reduction.}
 
-Together, these mechanisms explain the improvement: the graph reduces the decision space from $O(|\mathcal{T}|)$ to $O(|\text{path}|)$, eliminates structurally invalid options, and constrains each prediction step through reachability.
-The LLM chooses among $|\mathcal{E}|$ types (further constrained by reachability) rather than among $|\mathcal{T}|$ tools with no structural guidance.
+Graph search transforms semantic predictions into executable workflows.
+Rather than considering arbitrary tool combinations, breadth-first search explores only compositionally valid paths connecting the predicted entity types.
+The effective decision space is therefore reduced from the entire tool catalog to the small set of tools lying on valid graph paths.
+In practice, each query exposes only 1.4--2.0 candidate tools instead of the full registry of 54--170 tools.
+
+\paragraph{Execution Guarantees.}
+
+Every workflow returned by graph routing is compositionally valid by construction.
+Adjacent tools always compose because graph edges encode compatible input and output entity types.
+Consequently, graph routing cannot hallucinate tool invocations outside the registered tool graph.
+This structural guarantee is absent from direct tool selection.
+
+Taken together, these mechanisms provide a plausible explanation for the observed improvements.
+Semantic reasoning is performed by the language model through entity prediction, structural reasoning is delegated to graph search, and execution is limited to compositionally valid workflows.
+Rather than reasoning directly over the complete tool catalog, the model reasons over entity types while the graph enforces workflow validity.
 
 \subsection{Fault Tolerance}
 \label{sec:fault-tolerance}
 
-The recall decomposition (Section~\ref{sec:recall-decomposition}) shows that the graph degrades gracefully under type prediction errors rather than failing completely.
-$R_{\text{wrong}}$ is consistently above zero (range: 0.10--0.65), meaning that even incorrect type predictions recover some of the correct tool chain.
-The degree of recovery depends on graph topology: densely connected domains like GitHub (avg.\ $R_{\text{wrong}}$ = 0.48) recover more than sparser domains.
-This occurs when the predicted type is a graph neighbor of the correct type, so BFS from a nearby node traverses through some of the same edges.
+The recall decomposition (Section~\ref{sec:recall-decomposition}) shows that graph routing degrades gracefully under entity prediction errors rather than failing catastrophically.
+Across all model--domain combinations, $R_{\text{wrong}}$ remains consistently above zero (0.10--0.65), indicating that incorrect type predictions frequently recover part of the correct workflow.
+
+This behavior emerges naturally from graph topology.
+Neighboring entity types often share downstream paths, allowing graph search initiated from an incorrect but nearby entity to traverse portions of the same workflow.
+Domains with richer local connectivity therefore exhibit greater resilience to prediction errors than sparser domains.
+For example, GitHub achieves an average $R_{\text{wrong}}$ of 0.48, substantially higher than less connected domains.
+
+Robustness therefore depends not only on entity prediction accuracy but also on graph topology.
+Improving the organization of the typed composition graph can increase error tolerance even without improving the underlying language model.

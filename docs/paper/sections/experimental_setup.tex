@@ -1,84 +1,115 @@
+```latex
 \section{Experimental Setup}
 \label{sec:experimental-setup}
+
+We evaluate Typed Composition Search (TCS) across multiple domains, language models, and routing strategies to answer three research hypotheses (Section~\ref{sec:hypotheses}). The evaluation is designed to isolate the effects of entity prediction, graph structure, and end-to-end routing performance.
 
 \subsection{Domains}
 \label{sec:domains}
 
-We evaluate on five tool domains spanning infrastructure operations and e-commerce, chosen to cover a range of graph topologies (Table~\ref{tab:domain-stats}).
+We evaluate on five tool domains spanning infrastructure operations and e-commerce, covering a broad range of graph structures and tool registries (Table~\ref{tab:domain-stats}).
 
 \input{figures/table_domain_stats}
 
 The domains vary along three dimensions relevant to our hypotheses:
-\textbf{catalog size} (54--170 tools), \textbf{type density} (types-to-tools ratio from 30\% to 94\%), and \textbf{graph sparsity} (average entity pruning from 56\% to 87\%).
-CI/CD is the most informative test case: with 51 types for 54 tools (94\% ratio), the type space provides almost no label reduction, yet achieves the highest entity pruning (87\%).
-This shows that the graph constraint operates through topology, not label count.
 
-Tool registries for Kubernetes, Ansible, GitHub, and CI/CD are constructed from their respective API documentation and operational patterns.
-Shopify tools are derived from the Shopify Admin REST API, providing a non-infrastructure domain to test generalization.
+\begin{itemize}
+    \item \textbf{Catalog size}: from 54 to 170 tools.
+    \item \textbf{Type density}: entity types represent between 30\% and 94\% of the number of tools.
+    \item \textbf{Graph sparsity}: average entity pruning ranges from 56\% to 87\%.
+\end{itemize}
+
+CI/CD provides a particularly informative case.
+Although it contains 51 entity types for 54 tools (94\% type density), leaving almost no reduction in label space, it achieves the highest entity pruning (87\%).
+This demonstrates that graph-constrained routing derives its advantage from graph topology rather than simply reducing the number of prediction labels.
+
+Tool registries for Kubernetes, Ansible, GitHub, and CI/CD are constructed from their respective API documentation and operational workflows.
+The Shopify registry is derived from the Shopify Admin REST API and serves as a non-infrastructure domain to evaluate generality.
 
 \subsection{Models}
 \label{sec:models}
 
-We evaluate four language models spanning different scales and architectures:
+We evaluate four language models spanning different architectures and model sizes:
 
 \begin{itemize}
-    \item \textbf{Granite 4.1 8B}: Open-weight, 8 billion parameters.
-    \item \textbf{Qwen3-14B}: Open-weight, 14 billion parameters.
-    \item \textbf{GPT-OSS-20B}: Open-weight, 20 billion parameters.
-    \item \textbf{Claude Haiku 4.5}: Proprietary, parameter count undisclosed.
+    \item \textbf{Granite 4.1 8B}
+    \item \textbf{Qwen3-14B}
+    \item \textbf{GPT-OSS-20B}
+    \item \textbf{Claude Haiku 4.5}
 \end{itemize}
 
-All models are used off-the-shelf without fine-tuning.
-Our method should work with any model that can classify entity types from natural language, including models not trained for tool use.
+All models are evaluated off-the-shelf without fine-tuning.
+Since TCS requires only entity type prediction, the approach is applicable to any language model capable of natural language understanding, regardless of whether it was specifically trained for tool use.
 
-\subsection{Query Categories}
+\subsection{Query Dataset}
 \label{sec:query-categories}
 
-Each domain includes 25--30 queries organized into six categories:
+The benchmark contains 140 manually curated queries distributed across the five domains (25--30 queries per domain).
+
+Queries are organized into six categories that exercise different routing challenges:
 
 \begin{itemize}
-    \item \textbf{Clean}: Well-structured queries with clear entity references (e.g., ``Get the logs for pods in the production namespace'').
-    \item \textbf{Multi-hop}: Queries requiring 3+ tools in sequence (e.g., ``Show the resource usage of nodes running the cache deployment pods'').
-    \item \textbf{Noisy}: Real-world language with irrelevant details (e.g., ``Something seems wrong with the API. Can you figure out where it is running?'').
-    \item \textbf{Synonym}: Alternative terminology for entity types (e.g., ``workload'' for deployment, ``machine'' for host).
-    \item \textbf{Ambiguous}: Queries where the target entity type is genuinely uncertain (e.g., ``Show me information about the frontend application'').
-    \item \textbf{Multi-path}: Queries where multiple valid tool paths exist.
+    \item \textbf{Clean}: explicit requests with clearly identifiable entities.
+    \item \textbf{Multi-hop}: workflows requiring three or more tool invocations.
+    \item \textbf{Noisy}: realistic user requests containing irrelevant or distracting information.
+    \item \textbf{Synonym}: alternative terminology referring to the same entity types.
+    \item \textbf{Ambiguous}: queries where multiple interpretations are plausible.
+    \item \textbf{Multi-path}: queries admitting multiple valid tool compositions.
 \end{itemize}
 
-Total: 140 queries across 5 domains. Each query is annotated with ground-truth source and target entity types and the expected tool sequence (aligned to BFS shortest paths in the graph).
+Each query is annotated with
 
-\subsection{Strategies}
+\begin{itemize}
+    \item the ground-truth source entity type,
+    \item the ground-truth target entity type,
+    \item the expected tool sequence corresponding to the shortest valid path in the graph.
+\end{itemize}
+
+\subsection{Routing Strategies}
 \label{sec:strategies}
 
-We compare six routing strategies:
+We compare TCS against five alternative routing strategies.
 
 \begin{enumerate}
-    \item \textbf{Baseline}: The LLM selects tools directly from the full catalog presented in the prompt.
-    \item \textbf{Retrieval}: Embedding-based retrieval returns the top-$k$ most similar tools; the LLM selects from this reduced set.
-    \item \textbf{Graph}: Our method (typed composition search). The LLM predicts source and target entity types; BFS recovers the tool path.
-    \item \textbf{Graph-Reverse}: Target-first variant with probability-based source selection using multiple completions.
-    \item \textbf{Oracle}: Graph search with ground-truth entity types (upper bound on graph quality).
-    \item \textbf{Model-Types}: Type prediction only, without tool routing (isolates type prediction accuracy).
+    \item \textbf{Baseline}: direct tool selection from the complete tool catalog.
+    \item \textbf{Retrieval}: embedding-based retrieval selects the top-$k$ candidate tools before tool selection.
+    \item \textbf{Graph}: Typed Composition Search (ours).
+    \item \textbf{Graph-Reverse}: target-first graph routing with probability-based source selection using multiple model completions.
+    \item \textbf{Oracle}: graph search using ground-truth entity types, providing an upper bound on graph routing performance.
+    \item \textbf{Model-Types}: entity prediction only, without graph search, isolating type prediction quality.
 \end{enumerate}
 
-\subsection{Metrics}
+Together, these strategies isolate the contribution of each component of the proposed formulation: direct tool reasoning, retrieval-based reduction, entity prediction, and graph composition.
+
+\subsection{Evaluation Metrics}
 \label{sec:metrics}
 
-We report \textbf{precision}, \textbf{recall}, and \textbf{F1} computed over tool sets (predicted vs.\ expected).
-We also report \textbf{hallucinated tool count}: tools returned by the model that do not exist in the registry.
-For type prediction, we report source accuracy, target accuracy, and exact match (both correct).
+For end-to-end routing, we report precision, recall, and F1 computed over predicted and expected tool sets.
+
+To evaluate structural validity, we additionally report the number of hallucinated tool invocations, defined as predicted tools that do not exist in the tool registry.
+
+For entity prediction, we report
+
+\begin{itemize}
+    \item source entity accuracy,
+    \item target entity accuracy,
+    \item exact-match accuracy (both entity types predicted correctly).
+\end{itemize}
+
+These metrics allow the routing pipeline to be analyzed at both the semantic prediction level and the end-to-end execution level.
 
 \subsection{Research Hypotheses}
 \label{sec:hypotheses}
 
-We test three hypotheses:
+The experiments are designed to test three hypotheses.
 
 \paragraph{H1 (Decomposition Outperforms Direct Selection).}
-Graph-constrained entity prediction followed by graph search outperforms direct tool selection in end-to-end F1 and improves routing consistently across models and domains.
+Reformulating tool routing as entity prediction followed by graph search improves end-to-end routing performance compared to direct tool selection across models and domains.
 
-\paragraph{H2 (Graph Reduces Decision Space).}
-Constraining tool routing to graph-reachable typed transformations reduces the effective decision space faced by the language model.
-We measure this through entity pruning (Eq.~\ref{eq:entity-pruning}) and test whether greater search space reduction correlates with improved routing performance.
+\paragraph{H2 (Graph-Constrained Decision Space).}
+The primary benefit of Typed Composition Search arises from graph constraints rather than label-space reduction.
+We quantify graph constraints using the entity pruning metric (Eq.~\ref{eq:entity-pruning}) and evaluate whether stronger graph pruning correlates with larger routing improvements.
 
 \paragraph{H3 (Performance Decomposition).}
-End-to-end recall decomposes into type prediction quality and graph reachability (Eq.~\ref{eq:recall-decomposition}), separating model quality from graph quality and enabling targeted failure analysis.
+End-to-end routing performance decomposes into language model type prediction quality and graph reachability (Eq.~\ref{eq:recall-decomposition}), enabling routing errors to be attributed independently to semantic prediction or graph structure.
+```
