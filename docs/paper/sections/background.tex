@@ -4,40 +4,94 @@
 \subsection{Tool Routing}
 \label{sec:tool-routing}
 
-Tool routing is typically framed as a selection problem: given a query $q$ and a tool catalog $\mathcal{T}$, select a subset $\{t_1, \ldots, t_k\} \subseteq \mathcal{T}$.
-Small catalogs (5--20 tools) fit in the LLM's context window, but production environments often expose hundreds of tools \cite{qin2023toolllm}, and including the full catalog loses accuracy, increases token cost, and produces hallucinated tool invocations \cite{li2025toolscope}.
-When the task requires multi-step composition (e.g., ``get the logs for pods in a namespace'' requires listing pods, selecting one, then retrieving logs), the model must also determine the correct ordering.
+Tool routing is commonly formulated as a selection problem: given a user query
+$q$ and a catalog of tools $\mathcal{T}$, choose a subset
+$\{t_1,\ldots,t_k\}\subseteq\mathcal{T}$ to execute.
+
+This formulation works for small catalogs that fit comfortably within an LLM's
+context window. In production systems, however, tool ecosystems frequently
+contain hundreds of available tools \cite{qin2023toolllm}. Presenting the full
+catalog increases context length, degrades selection accuracy, raises inference
+cost, and often produces hallucinated tool invocations
+\cite{li2025toolscope}. When tasks require multiple tool calls, the model must
+also infer a valid execution order while reasoning over the entire catalog.
+
+These challenges suggest that tool routing is not only a retrieval problem, but
+also a compositional reasoning problem.
 
 \subsection{Existing Approaches}
 \label{sec:existing-approaches}
 
 \paragraph{Direct Selection.}
-The simplest approach presents all tool descriptions to the LLM and lets it select which to call \cite{schick2024toolformer, patil2023gorilla}.
-This works for small catalogs but scales poorly: context length grows linearly with catalog size, and the model must reason about tool compatibility without structural guidance.
+
+The simplest approach presents every tool description to the language model and
+lets it decide which tools to invoke
+\cite{schick2024toolformer,patil2023gorilla}. While effective for small tool
+sets, this strategy scales poorly because context size grows linearly with the
+number of tools and the model must simultaneously reason about tool semantics
+and compatibility.
 
 \paragraph{Retrieval-Based Routing.}
-Embedding-based retrieval reduces the candidate set by returning tools whose descriptions are semantically similar to the query \cite{li2025toolscope}.
-This addresses scalability but not compositionality: retrieved tools are similar to the query but not necessarily valid together in a tool chain.
+
+Embedding-based methods first retrieve a subset of semantically relevant tools
+before invoking the language model \cite{li2025toolscope}. This substantially
+improves scalability, but semantic similarity alone does not guarantee that the
+retrieved tools can be composed into a valid workflow. Composition remains an
+implicit responsibility of the LLM.
 
 \paragraph{Graph-Based Planning.}
-Several recent systems use graph structures to guide tool composition.
-PLaG \cite{lin2024plag} serializes a task graph into the prompt for code generation.
-ControlLLM \cite{zhang2024controlllm} builds a tool graph and uses search to find valid tool chains for multimodal pipelines.
-GNN4Plan \cite{wang2024gnn4plan} trains graph neural networks to predict tool sequences.
-GRAFT \cite{li2025graft} tokenizes graph structure and fine-tunes an LLM on graph-augmented representations.
 
-These approaches use graph structure effectively, but most require task-specific training or complex pipeline architectures.
+Several recent systems introduce graph structure to support tool composition.
+PLaG \cite{lin2024plag} serializes task graphs into prompts for code
+generation. ControlLLM \cite{zhang2024controlllm} constructs tool graphs and
+searches for executable multimodal pipelines. GNN4Plan
+\cite{wang2024gnn4plan} learns tool planning using graph neural networks, while
+GRAFT \cite{li2025graft} incorporates graph representations through
+graph-aware fine-tuning.
+
+These approaches demonstrate that graph structure improves compositional
+reasoning, but most require task-specific training, graph serialization inside
+the prompt, or specialized planning architectures.
 
 \subsection{Why Entities}
 \label{sec:why-entities}
 
-We observe that users describe tasks in terms of \emph{entities}, not tools.
-A query like ``What node is running my database pod?'' references two entity types (\texttt{Pod}, \texttt{Node}) without naming any tool.
-The mapping from entity types to tools is deterministic given a typed tool registry.
+We argue that tool routing is formulated at the wrong level of abstraction.
 
-This suggests a separation of concerns: the LLM should reason about \emph{what} the user wants (entity types), while a structural mechanism should determine \emph{how} to get there (tool composition).
+Users naturally express tasks in terms of semantic entities rather than
+executable tools. For example, the query
 
-The benefit of this decomposition is not that there are fewer entity types than tools (in some domains the counts are nearly equal; Section~\ref{sec:experimental-setup}).
-The benefit is that graph reachability \emph{constrains} each prediction step.
-After predicting a target entity type, reverse reachability in the graph eliminates source types that cannot reach the target through any valid tool composition.
-We measure this effect through entity pruning (Section~\ref{sec:graph-constraint}) and find 56--87\% average pruning across five domains, including a domain where entity types and tools are in near-parity.
+\begin{quote}
+``What node is running my database pod?''
+\end{quote}
+
+mentions the entity types \texttt{Pod} and \texttt{Node} without referring to
+any specific tool.
+
+This observation suggests separating semantic reasoning from compositional
+reasoning. Language models excel at mapping natural language to semantic
+concepts, whereas graphs naturally encode structural constraints over valid
+compositions. Rather than reasoning directly about tools, the language model
+predicts entity types, and graph search recovers a valid sequence of tool
+applications connecting them.
+
+Formally, a tool registry induces a typed directed graph whose vertices
+represent entity types and whose edges represent executable transformations.
+Tool routing therefore becomes the problem of recovering a valid path between
+predicted source and target entity types.
+
+The benefit of this reformulation is not simply that there may be fewer entity
+types than tools. In some domains, the two are nearly equal
+(Section~\ref{sec:experimental-setup}). Instead, the graph itself constrains
+the reasoning process. Once a target entity type is predicted, reverse
+reachability immediately eliminates source types that cannot participate in any
+valid composition. We quantify this structural reduction through entity pruning
+(Section~\ref{sec:graph-constraint}), observing 56--87\% average pruning across
+five domains, including domains where entity types and tools are nearly in
+one-to-one correspondence.
+
+This decomposition assigns each component the reasoning task for which it is
+best suited. The language model performs semantic inference over entity types,
+while graph search performs compositional reasoning over executable
+transformations. As a result, valid tool sequences are recovered through graph
+structure rather than inferred directly by the language model.

@@ -1,61 +1,65 @@
 \section{Method}
 \label{sec:method}
 
-We reformulate tool routing as typed entity reasoning.
-Instead of selecting tools directly from a catalog, we predict the \emph{entity types} that a query operates on and recover the tool sequence through graph search over a typed composition graph.
+We propose \emph{Typed Composition Search (TCS)}, a formulation of tool routing that separates semantic reasoning from compositional reasoning.
+Instead of predicting executable tools directly, a language model predicts the entity types involved in a query, while deterministic graph search recovers a valid tool composition.
+LLMs perform semantic reasoning over entity types; graph search performs compositional reasoning over valid transformations.
 
-\subsection{Problem Definition}
+\subsection{Problem Formulation}
 \label{sec:problem-def}
 
-Let $\mathcal{E} = \{e_1, e_2, \ldots, e_n\}$ be a set of \textbf{entity types} in a domain (e.g., \texttt{Pod}, \texttt{Namespace}, \texttt{Deployment} in Kubernetes).
-Let $\mathcal{T} = \{t_1, t_2, \ldots, t_m\}$ be a set of \textbf{tools}, where each tool is a typed transformation:
-\begin{equation}
-    t_k : e_i \rightarrow e_j, \quad e_i, e_j \in \mathcal{E}
-    \label{eq:tool-transform}
-\end{equation}
-That is, tool $t_k$ takes an entity of type $e_i$ as input and produces an entity of type $e_j$ as output.
+Existing approaches formulate tool routing as direct tool selection from a catalog.
+Given a natural language query $q$, a model selects one or more tools:
 
-\paragraph{Typed Composition Graph.}
-We define a directed graph $G = (\mathcal{E}, \mathcal{T})$ where entity types are nodes and tools are edges.
-An edge $t_k$ from $e_i$ to $e_j$ exists if and only if tool $t_k : e_i \rightarrow e_j$.
-Multiple tools may connect the same pair of types, and a single tool may have multiple input or output types, producing multiple edges.
-
-\paragraph{Tool Routing.}
-Given a natural language query $q$, the goal is to produce an ordered sequence of tools $[t_1, t_2, \ldots, t_l]$ that, when composed, transforms some source entity into the desired target entity.
-This sequence must be \emph{compositionally valid}: the output type of each tool must match the input type of the next.
-
-\paragraph{Baseline Formulation.}
-In direct tool selection, a model $g$ selects tools from the full catalog:
 \begin{equation}
     g(q) \rightarrow \{t_1, \ldots, t_k\} \subseteq \mathcal{T}
 \end{equation}
-The model must simultaneously identify which tools are relevant \emph{and} determine a valid ordering.
-With $|\mathcal{T}|$ tools, the decision space grows with the catalog size, and compositional validity is not guaranteed.
 
-\paragraph{Our Formulation.}
-We decompose tool routing into two steps:
-\begin{enumerate}
-    \item \textbf{Type prediction}: A model $f$ predicts the source and target entity types from the query:
-    \begin{equation}
-        f(q) \rightarrow (\hat{e}_{\text{src}}, \hat{e}_{\text{tgt}})
-        \label{eq:type-prediction}
-    \end{equation}
-    \item \textbf{Graph search}: A deterministic search recovers the tool sequence:
-    \begin{equation}
-        \textsc{Path}(G, \hat{e}_{\text{src}}, \hat{e}_{\text{tgt}}) \rightarrow [t_1, t_2, \ldots, t_l]
-        \label{eq:graph-search}
-    \end{equation}
-\end{enumerate}
+This formulation requires the model to simultaneously identify relevant tools and infer a valid execution order, without any guarantee that the resulting composition is structurally valid.
 
-The LLM handles semantic reasoning (what entity types does the user mean?), while the graph handles compositional reasoning (what tools connect those types?).
+We instead formulate routing over typed entities.
 
+Let $\mathcal{E} = \{e_1, e_2, \ldots, e_n\}$ denote the set of entity types in a domain (e.g., \texttt{Pod}, \texttt{Namespace}, \texttt{Deployment} in Kubernetes).
+Let $\mathcal{T} = \{t_1, t_2, \ldots, t_m\}$ denote the available tools, where each tool is a typed transformation
 
-\subsection{Tools as Typed Transformations}
-\label{sec:typed-tools}
+\begin{equation}
+    t_k : e_i \rightarrow e_j,
+    \qquad
+    e_i,e_j \in \mathcal{E}.
+    \label{eq:tool-transform}
+\end{equation}
 
-Most tools in structured domains operate on well-defined entity types.
-A tool consumes an entity of one type and produces an entity of another.
-For example, in a Kubernetes tool catalog:
+That is, tool $t_k$ consumes an entity of type $e_i$ and produces an entity of type $e_j$.
+
+Given a query, the objective is to recover an ordered tool sequence
+$[t_1,\ldots,t_l]$
+that transforms a source entity into the desired target entity.
+The sequence must be compositionally valid: the output type of every tool must match the input type of the next.
+
+\subsection{Typed Composition Graph}
+\label{sec:typed-graph}
+
+The tool registry is represented as a directed graph
+
+\[
+G=(\mathcal{E},\mathcal{T}),
+\]
+
+where entity types are nodes and tools are directed edges.
+An edge exists from $e_i$ to $e_j$ whenever a tool
+$t_k:e_i\rightarrow e_j$
+is available.
+
+Multiple tools may connect the same pair of entity types, and tools with multiple input or output types generate multiple edges.
+
+In this representation,
+
+\begin{itemize}
+\item a valid tool invocation corresponds to a graph edge;
+\item a valid multi-step workflow corresponds to a graph path.
+\end{itemize}
+
+For example, consider a Kubernetes tool registry:
 
 \begin{itemize}
     \item \texttt{list\_pods}: \texttt{Namespace} $\rightarrow$ \texttt{Pod}
@@ -63,84 +67,115 @@ For example, in a Kubernetes tool catalog:
     \item \texttt{get\_pod\_node}: \texttt{Pod} $\rightarrow$ \texttt{Node}
 \end{itemize}
 
-A query like ``Get the logs for pods in the production namespace'' implicitly defines a path from \texttt{Namespace} to \texttt{PodLogs}.
-The tools along this path (\texttt{list\_pods}, \texttt{select\_pod}, \texttt{get\_pod\_logs}) emerge from graph traversal rather than direct selection.
+A query such as
 
+\begin{quote}
+``Get the logs for pods in the production namespace.''
+\end{quote}
 
-\subsection{Graph Construction}
-\label{sec:graph-construction}
+implicitly specifies a path from
+\texttt{Namespace}
+to
+\texttt{PodLogs}.
+The corresponding tool sequence emerges directly from graph connectivity rather than being predicted explicitly by the language model.
 
-Given a tool registry with typed signatures, graph construction is mechanical:
-for each tool $t_k : e_i \rightarrow e_j$, add a directed edge from node $e_i$ to node $e_j$ labeled $t_k$.
-The resulting graph $G$ encodes all valid single-step transformations.
-Multi-step compositions correspond to paths in $G$.
+The graph is constructed once from the typed tool registry and is independent of the language model.
+No training, fine-tuning, embeddings, or learned routing policies are required.
 
-The graph is constructed once per domain and is independent of any language model.
-No training, fine-tuning, or embedding computation is required.
+\subsection{Typed Composition Search}
+\label{sec:tcs}
 
+Routing is decomposed into two independent stages.
 
-\subsection{Path Recovery via BFS}
-\label{sec:bfs}
+First, the language model predicts the source and target entity types:
 
-Given predicted types $(\hat{e}_{\text{src}}, \hat{e}_{\text{tgt}})$, we use breadth-first search (BFS) on $G$ to find the shortest path from $\hat{e}_{\text{src}}$ to $\hat{e}_{\text{tgt}}$.
-The edges along this path define the tool sequence.
+\begin{equation}
+    f(q)
+    \rightarrow
+    (\hat e_{\mathrm{src}},
+     \hat e_{\mathrm{tgt}})
+    \label{eq:type-prediction}
+\end{equation}
 
-BFS is deterministic and model-independent: given the same graph and type predictions, it always produces the same tool sequence.
-This separates routing correctness into two independent factors: (1) whether the LLM predicted the right types, and (2) whether the graph contains a valid path.
+Second, deterministic graph search recovers the shortest valid composition between the predicted types.
 
-When no path exists (disconnected types), the system returns an empty result rather than hallucinating tools.
-Returning nothing is safer than returning structurally invalid tool sequences, particularly in infrastructure and operational domains.
+The complete routing function is
 
+\begin{equation}
+    \pi(q)
+    =
+    \textsc{Path}
+    \left(
+        G,
+        f_{\mathrm{src}}(q),
+        f_{\mathrm{tgt}}(q)
+    \right),
+    \label{eq:routing-function}
+\end{equation}
 
-\subsection{Entity-Based Routing}
-\label{sec:entity-routing}
+where $\textsc{Path}$ returns the shortest valid tool sequence connecting the predicted entity types.
+Any shortest-path algorithm may be used; in our implementation we use breadth-first search because all graph edges are unweighted.
 
-The full routing procedure works as follows:
+Since every returned sequence corresponds to a path in the typed graph, every tool composition is guaranteed to satisfy input-output compatibility.
+Structurally invalid tool compositions cannot be generated.
+
+This decomposition separates routing correctness into two independent components:
+
 \begin{enumerate}
-    \item Present the LLM with the query $q$ and the list of entity types $\mathcal{E}$.
-    \item The LLM predicts $(\hat{e}_{\text{src}}, \hat{e}_{\text{tgt}})$.
-    \item BFS on $G$ recovers the tool path from $\hat{e}_{\text{src}}$ to $\hat{e}_{\text{tgt}}$.
-    \item Return the ordered tool sequence along the path.
+\item semantic correctness (whether the language model predicts the correct entity types);
+\item compositional correctness (whether the graph contains a valid path between them).
 \end{enumerate}
 
-The LLM chooses from $|\mathcal{E}|$ entity types rather than $|\mathcal{T}|$ tools, but the primary benefit is \emph{graph-constrained decision making}, not the reduced label count: after predicting one type, graph reachability constrains the valid choices for the other.
+If no valid path exists, the system returns an empty result rather than generating an invalid tool composition.
 
-
-\subsection{Graph Constraint and Entity Pruning}
+\subsection{Graph-Constrained Reasoning}
 \label{sec:graph-constraint}
 
-We quantify how much the graph constrains the decision space with the \textbf{entity pruning} metric.
-For a given target type $e_{\text{tgt}}$, let $R^{-1}(e_{\text{tgt}}) \subseteq \mathcal{E}$ be the set of types from which $e_{\text{tgt}}$ is reachable via any path in $G$.
-The entity pruning is:
+The primary advantage of this formulation is not simply that there are fewer entity types than tools.
+Rather, the graph itself constrains the reasoning space.
+
+Once a target entity type has been predicted, reverse reachability eliminates every source type that cannot reach that target through any valid composition.
+
+We quantify this structural constraint using the \emph{entity pruning} metric.
+
+Let
+$R^{-1}(e_{\mathrm{tgt}})\subseteq\mathcal{E}$
+denote the set of entity types from which
+$e_{\mathrm{tgt}}$
+is reachable in the graph.
+
+Entity pruning is defined as
+
 \begin{equation}
-    \text{pruning}(e_{\text{tgt}}) = 1 - \frac{|R^{-1}(e_{\text{tgt}})|}{|\mathcal{E}|}
+    \mathrm{pruning}(e_{\mathrm{tgt}})
+    =
+    1-
+    \frac{
+        |R^{-1}(e_{\mathrm{tgt}})|
+    }{
+        |\mathcal{E}|
+    }.
     \label{eq:entity-pruning}
 \end{equation}
 
-A pruning value of 0.87 means that, given a target prediction, 87\% of source types are eliminated as candidates because they cannot reach the target through any valid tool composition.
-This reduces the effective decision space for source prediction without any model computation.
+For example, a pruning value of 0.87 indicates that 87\% of possible source entity types are eliminated because they cannot reach the predicted target through any valid composition.
 
-Entity pruning is a property of the graph topology, not the language model.
-It works identically regardless of which model performs type prediction.
+Importantly, this reduction depends only on graph topology.
+It is independent of the language model and therefore applies equally to any type prediction model.
 
+Because routing decomposes into type prediction followed by deterministic graph search, end-to-end recall also admits a simple decomposition:
 
-\subsection{Research Hypotheses}
-\label{sec:hypotheses}
-
-We formulate three testable hypotheses:
-
-\paragraph{H1 (Decomposition Outperforms Direct Selection).}
-Graph-constrained entity prediction followed by graph search outperforms direct tool selection in end-to-end F1, produces zero hallucinated tools, and improves routing consistently across models and domains.
-
-\paragraph{H2 (Graph Reduces Decision Space).}
-Constraining tool routing to graph-reachable typed transformations reduces the effective decision space faced by the language model, leading to improved tool selection accuracy.
-We measure this through entity pruning (Eq.~\ref{eq:entity-pruning}) and test whether greater search space reduction correlates with improved routing performance.
-
-\paragraph{H3 (Performance Decomposition).}
-End-to-end recall can be decomposed into type prediction quality and graph reachability:
 \begin{equation}
-    R = P_c \cdot R_c + (1 - P_c) \cdot R_w
+    R
+    =
+    P_cR_c
+    +
+    (1-P_c)R_w,
     \label{eq:recall-decomposition}
 \end{equation}
-where $P_c$ is the probability of correct type prediction, $R_c$ is recall when types are correct, and $R_w$ is recall when types are wrong.
-This decomposition separates model quality from graph quality and enables targeted failure analysis.
+
+where $P_c$ denotes the probability of correct entity type prediction,
+$R_c$ the routing recall when the predicted types are correct,
+and $R_w$ the routing recall when they are incorrect.
+
+This decomposition separates language model performance from graph quality and enables routing failures to be analyzed independently.
