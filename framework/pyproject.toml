@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tcs"
+version = "0.1.0"
+description = "Tool routing via typed composition graphs — resolve multi-step tool chains from entity types"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+readme = "README.md"
+authors = [{ name = "Jose Angel Morena" }]
+keywords = ["llm", "tools", "agents", "composition", "graph", "routing"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/jmorena/tcs"
+Repository = "https://github.com/jmorena/tcs"
+
+[project.optional-dependencies]
+llm = ["litellm>=1.89.3"]
+
+[dependency-groups]
+dev = ["pytest"]
