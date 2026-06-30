@@ -19,10 +19,17 @@ Breadth-first search treats all edges equally.
 In practice, a write operation may appear on a shorter path than a semantically preferable read-only sequence.
 Weighted graph search using operation type or execution cost is a natural extension.
 
+\paragraph{Manual Graph Construction.}
+
+Typed Composition Routing requires a typed composition graph to be constructed before routing can begin.
+In our experiments, each domain registry was manually authored from API documentation, representing additional upfront effort compared to approaches that operate directly over tool catalogs.
+This cost is amortized over all subsequent queries, but it remains a barrier to adoption in rapidly evolving tool ecosystems.
+Automatically deriving typed composition graphs from API specifications (e.g., OpenAPI schemas) is a non-trivial open problem, as it requires resolving implicit entity relationships that are not always explicit in schema definitions.
+
 \paragraph{Entity Type System Quality.}
 
-The effectiveness of graph routing depends on the granularity of the entity type system.
-Our experiments use manually constructed type systems; automatically deriving typed composition graphs from API specifications (e.g., OpenAPI schemas) remains an open direction.
+Even when a graph is available, the effectiveness of graph routing depends on the granularity of the entity type system.
+Overly fine-grained types increase prediction difficulty, while overly coarse types weaken graph constraints by introducing unnecessary connectivity.
 
 \paragraph{Single-Intent Queries.}
 

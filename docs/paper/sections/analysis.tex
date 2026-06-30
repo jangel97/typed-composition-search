@@ -38,6 +38,23 @@ Granite-8B averages $\Delta$F1 = +0.365 across domains, whereas Qwen3-14B averag
 
 Because this comparison involves only four models, we interpret it as preliminary evidence that graph constraints may compensate for weaker tool-selection ability rather than a general scaling law.
 
+\subsection{Task Difficulty}
+\label{sec:task-difficulty}
+
+A direct per-query comparison of entity prediction and tool selection provides evidence that the decomposition reduces task difficulty (Figure~\ref{fig:task-difficulty}).
+Across all 589 query instances evaluated with both strategies, the LLM correctly predicts both entity types in 61\% of cases, compared to only 12\% of cases where the baseline achieves perfect tool selection (F1 = 1.0).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/task_difficulty_comparison.pdf}
+\caption{(a) Per-query accuracy: entity type prediction (both types correct) vs.\ direct tool selection (F1 = 1.0). Entity prediction succeeds 5$\times$ more often across all models. (b) When tool selection fails, entity prediction still succeeds 54--63\% of the time.}
+\label{fig:task-difficulty}
+\end{figure}
+
+When direct tool selection fails, entity prediction still succeeds 60\% of the time (310 of 519 instances).
+This pattern is consistent across all four models (range: 54--63\%), suggesting that the decomposition presents the model with a more tractable prediction task.
+Although the two metrics are not directly comparable---perfect tool selection requires an exact multi-step sequence while entity prediction requires two correct labels---the consistently higher accuracy across all models indicates that the LLM achieves substantially better performance on entity type prediction than on direct tool selection.
+
 \subsection{Mechanistic Explanation}
 \label{sec:mechanistic}
 
