@@ -30,6 +30,8 @@ Automatically deriving typed composition graphs from API specifications (e.g., O
 
 Even when a graph is available, the effectiveness of graph routing depends on the granularity of the entity type system.
 Overly fine-grained types increase prediction difficulty, while overly coarse types weaken graph constraints by introducing unnecessary connectivity.
+TCR requires the graph to encode the semantic distinctions necessary for composition.
+Benchmarks or domains whose type system is too coarse (e.g., only modality-level types) collapse distinct workflows into identical graph paths, preventing the graph from disambiguating tool sequences.
 
 \paragraph{Single-Intent Queries.}
 
