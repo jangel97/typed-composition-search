@@ -2,9 +2,9 @@
 \section{Introduction}
 \label{sec:introduction}
 
-Large Language Model (LLM) agents increasingly rely on external tools to answer questions and perform real-world tasks \cite{yao2023react, shen2024hugginggpt}. Modern tool ecosystems routinely contain tens or hundreds of APIs spanning cloud platforms, software development, infrastructure automation, and enterprise operations. As these ecosystems grow, \emph{tool routing} (determining which tools should be invoked to satisfy a user query) becomes increasingly challenging.
+Large Language Model (LLM) agents increasingly rely on external tools to answer questions and perform real-world tasks \cite{yao2023react, shen2023hugginggpt}. Modern tool ecosystems routinely contain tens or hundreds of APIs spanning cloud platforms, software development, infrastructure automation, and enterprise operations. As these ecosystems grow, \emph{tool routing} (determining which tools should be invoked to satisfy a user query) becomes increasingly challenging.
 
-Existing approaches typically formulate routing as \emph{direct tool selection}: given a natural language query, the LLM selects tools directly from the full catalog \cite{li2025toolscope, qin2023toolllm}. This formulation requires the model to simultaneously identify relevant tools, infer multi-step compositions, and ensure that the resulting sequence is executable, all in a single unconstrained decision. As tool catalogs grow, this reasoning problem becomes increasingly difficult and may result in missed tool compositions or structurally invalid tool invocations.
+Existing approaches typically formulate routing as \emph{direct tool selection}: given a natural language query, the LLM selects tools directly from the full catalog \cite{li2025toolscope, qin2024toolllm}. This formulation requires the model to simultaneously identify relevant tools, infer multi-step compositions, and ensure that the resulting sequence is executable, all in a single unconstrained decision. As tool catalogs grow, this reasoning problem becomes increasingly difficult and may result in missed tool compositions or structurally invalid tool invocations.
 
 We argue that the primary bottleneck is not merely the number of available tools, but the \emph{abstraction} itself. Direct tool routing conflates two fundamentally different reasoning tasks:
 

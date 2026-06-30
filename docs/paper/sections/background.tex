@@ -10,7 +10,7 @@ $\{t_1,\ldots,t_k\}\subseteq\mathcal{T}$ to execute.
 
 This formulation works for small catalogs that fit comfortably within an LLM's
 context window. In production systems, however, tool ecosystems frequently
-contain hundreds of available tools \cite{qin2023toolllm}. Presenting the full
+contain hundreds of available tools \cite{qin2024toolllm}. Presenting the full
 catalog increases context length, degrades selection accuracy, raises inference
 cost, and often produces hallucinated tool invocations
 \cite{li2025toolscope}. When tasks require multiple tool calls, the model must
@@ -26,7 +26,7 @@ also a compositional reasoning problem.
 
 The simplest approach presents every tool description to the language model and
 lets it decide which tools to invoke
-\cite{schick2024toolformer,patil2023gorilla}. While effective for small tool
+\cite{schick2023toolformer,patil2024gorilla}. While effective for small tool
 sets, this strategy scales poorly because context size grows linearly with the
 number of tools and the model must simultaneously reason about tool semantics
 and compatibility.

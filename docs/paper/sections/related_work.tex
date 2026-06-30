@@ -6,9 +6,9 @@ Existing work on tool use by language models can be broadly grouped into three d
 \paragraph{Direct Tool Selection.}
 
 Most tool-routing systems formulate the problem as selecting one or more tools directly from a catalog.
-ToolLLM~\cite{qin2023toolllm}, Gorilla~\cite{patil2023gorilla}, and Toolformer~\cite{schick2024toolformer} train or adapt language models to decide when and how to invoke APIs.
+ToolLLM~\cite{qin2024toolllm}, Gorilla~\cite{patil2024gorilla}, and Toolformer~\cite{schick2023toolformer} train or adapt language models to decide when and how to invoke APIs.
 ToolBench~\cite{xu2023toolbench} and API-Bank~\cite{li2023apibank} provide evaluation frameworks for tool manipulation capabilities, while ToolScope~\cite{li2025toolscope} studies embedding-based retrieval as a scalable alternative for large tool collections.
-TaskBench~\cite{shen2023taskbench} introduces a tool graph for benchmark generation, though the graph is used to construct evaluation data rather than for runtime routing.
+TaskBench~\cite{shen2024taskbench} introduces a tool graph for benchmark generation, though the graph is used to construct evaluation data rather than for runtime routing.
 
 These approaches reason directly over tools, framing routing as a retrieval or classification problem in the tool space.
 In contrast, Typed Composition Routing shifts semantic prediction from tools to entity types and delegates tool composition to graph search, separating semantic reasoning from structural reasoning rather than requiring the language model to solve both simultaneously.
@@ -29,7 +29,7 @@ Typed Composition Routing instead operates with off-the-shelf language models an
 
 \paragraph{Compositional Reasoning Agents.}
 
-General-purpose agent frameworks such as HuggingGPT~\cite{shen2024hugginggpt}, Chameleon~\cite{lu2024chameleon}, and ReAct~\cite{yao2023react} rely primarily on language-model reasoning to compose multi-step tool invocations.
+General-purpose agent frameworks such as HuggingGPT~\cite{shen2023hugginggpt}, Chameleon~\cite{lu2023chameleon}, and ReAct~\cite{yao2023react} rely primarily on language-model reasoning to compose multi-step tool invocations.
 While highly flexible, these systems provide no explicit structural guarantees that generated tool sequences are compositionally valid.
 
 Typed Composition Routing augments language-model reasoning with an explicit typed graph.

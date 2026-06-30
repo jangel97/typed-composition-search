@@ -1,0 +1,12 @@
+\section*{Ethics Statement}
+\label{sec:ethics}
+
+This work introduces a routing formulation and evaluates it on benchmark queries constructed from public API documentation.
+No human subjects, personal data, or proprietary information are involved.
+All language models are used as provided, with no additional training or fine-tuning.
+
+The benchmark queries describe infrastructure and platform operations (e.g., listing Kubernetes pods, querying GitHub repositories) and do not involve sensitive content.
+All tool registries were manually constructed from publicly available documentation.
+
+By constraining tool routing to structurally valid graph paths, Typed Composition Routing eliminates hallucinated tool invocations.
+In safety-critical domains such as infrastructure automation, this structural guarantee may reduce the risk of executing unintended or invalid tool sequences, though the approach does not address all sources of error in tool-augmented systems.
