@@ -2,11 +2,11 @@
 
 Typed composition search (TCS) evaluated against the real [ansible/aap-mcp-server](https://github.com/ansible/aap-mcp-server) tool surface: **1,060 tools** derived from 4 OpenAPI specs across Controller, EDA, Galaxy, and Gateway services. 47 benchmark queries across 6 categories, evaluated with Qwen3-14B.
 
-We are not trying to make the model better at choosing among thousands of tools. We changing the representation so it never has to.
+Rather than making the model better at selecting thousands of tools, we change the representation so it never has to.
 
 ## The scale problem
 
-With 1,060 tools, the standard approach of presenting all tools to the LLM hits a hard limit. For Qwen3-14B (40,960 token context), encoding the complete tool surface as function schemas produces a prompt of 40,961 tokens — exceeding the context window and preventing execution entirely.
+With 1,060 tools, a common approach of presenting all tools to the LLM hits a hard limit. For Qwen3-14B (40,960 token context), encoding the complete tool surface as function schemas produces a prompt of 40,961 tokens — exceeding the context window and preventing execution entirely.
 
 TCS sidesteps this by replacing tool selection with type classification. The 1,060 tools collapse into 79 entity types. The LLM classifies source and target types from this compact list; graph search handles tool lookup deterministically.
 
@@ -18,7 +18,7 @@ TCS sidesteps this by replacing tool selection with type classification. The 1,0
 
 \* Function schemas include parameter definitions, JSON Schema metadata, and descriptions, making them substantially larger per tool than plain text listings.
 
-The LLM reasons over a vocabulary of 79 entity types instead of descriptions for 1,060 individual tools. Graph search then deterministically recovers the executable tool chain through shared types, adding no LLM cost.
+The LLM reasons over 79 canonical entity types instead of descriptions for 1,060 individual tools. Graph search then deterministically recovers the executable tool chain through shared types, adding no LLM cost.
 
 ## Pipeline overview
 
