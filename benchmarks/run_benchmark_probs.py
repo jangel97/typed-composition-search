@@ -35,9 +35,9 @@ Available entity types:
 Respond with ONLY the entity type name, nothing else."""
 
 
-DEFAULT_THRESHOLD = 0.15
+DEFAULT_THRESHOLD = 0.05
 DEFAULT_MAX_CANDIDATES = 5
-FALLBACK_N = 3
+DEFAULT_MIN_CANDIDATES = 3
 
 
 def parse_completions(response, type_names: list[str]) -> list[tuple[str, float]]:
@@ -72,11 +72,12 @@ def filter_candidates(
     candidates: list[tuple[str, float]],
     threshold: float = DEFAULT_THRESHOLD,
     max_candidates: int = DEFAULT_MAX_CANDIDATES,
+    min_candidates: int = DEFAULT_MIN_CANDIDATES,
 ) -> list[tuple[str, float]]:
     above = [(name, prob) for name, prob in candidates if prob >= threshold]
-    if not above:
-        return candidates[:FALLBACK_N]
-    return above[:max_candidates]
+    if len(above) >= min_candidates:
+        return above[:max_candidates]
+    return candidates[:max(min_candidates, len(above))]
 
 
 def predict_source(config, query, entity_types, type_names, threshold, max_candidates):

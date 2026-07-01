@@ -37,6 +37,13 @@ MODELS = {
         "env_key": "SANDBOX_API_KEY_GPTOSS",
         "extra_params": {},
     },
+    "gemini-flash": {
+        "litellm_model": "vertex_ai/gemini-2.0-flash",
+        "api_base": None,
+        "env_key": "VERTEXAI_PROJECT",
+        "extra_params": {},
+        "vertex_ai_native": True,
+    },
 }
 
 EMBED_CONFIG = {
@@ -180,15 +187,22 @@ def llm_completion(config: dict, messages: list[dict], temperature: float = 0, *
     extra_params = dict(config.get("extra_params", {}))
     if "extra_body" in kwargs and "extra_body" in extra_params:
         extra_params["extra_body"] = {**extra_params["extra_body"], **kwargs.pop("extra_body")}
-    return litellm.completion(
-        model=config["litellm_model"],
-        messages=messages,
-        temperature=temperature,
-        api_key=config["api_key"],
-        api_base=config["api_base"],
+
+    call_kwargs = {
+        "model": config["litellm_model"],
+        "messages": messages,
+        "temperature": temperature,
         **extra_params,
         **kwargs,
-    )
+    }
+    if config.get("vertex_ai_native"):
+        call_kwargs["vertex_project"] = config["api_key"]
+        call_kwargs["vertex_location"] = os.environ.get("VERTEXAI_LOCATION", "us-central1")
+    else:
+        call_kwargs["api_key"] = config["api_key"]
+        call_kwargs["api_base"] = config["api_base"]
+
+    return litellm.completion(**call_kwargs)
 
 
 _embed_cache: dict[tuple, list[list[float]]] = {}

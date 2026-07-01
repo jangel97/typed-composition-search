@@ -6,7 +6,7 @@ import time
 from benchmarks.llm import get_llm_config, llm_completion
 from benchmarks.metrics import avg, std, build_type_list, match_type_name, format_metric, format_pruning, format_tools
 from benchmarks.parallel import run_queries_parallel
-from benchmarks.run_benchmark_probs import parse_completions, filter_candidates, DEFAULT_THRESHOLD, DEFAULT_MAX_CANDIDATES
+from benchmarks.run_benchmark_probs import parse_completions, filter_candidates, DEFAULT_THRESHOLD, DEFAULT_MAX_CANDIDATES, DEFAULT_MIN_CANDIDATES
 from benchmarks.report import BenchmarkReport, query_graph_metrics
 
 
@@ -89,6 +89,7 @@ def run_benchmark_reverse_probs(
     n_completions: int = 5,
     threshold: float = DEFAULT_THRESHOLD,
     max_candidates: int = DEFAULT_MAX_CANDIDATES,
+    min_candidates: int = DEFAULT_MIN_CANDIDATES,
 ):
     reg_mod = importlib.import_module(f"benchmarks.{domain}.registry")
     queries_mod = importlib.import_module(f"benchmarks.{domain}.queries")
@@ -140,11 +141,11 @@ def run_benchmark_reverse_probs(
         total_completion += ctok
         llm_calls += 1
 
-        target_candidates = filter_candidates(target_candidates, threshold, max_candidates)
+        target_candidates = filter_candidates(target_candidates, threshold, max_candidates, min_candidates)
         n_tgt = len(target_candidates)
         tgt_in = any(name == q["target_type"] for name, _ in target_candidates)
 
-        best_path = None
+        all_paths = []
         best_score = float("-inf")
         best_source = "?"
         best_target = "?"
@@ -164,23 +165,23 @@ def run_benchmark_reverse_probs(
             total_prompt += ptok
             total_completion += ctok
             llm_calls += 1
-            source_candidates = filter_candidates(source_candidates, threshold, max_candidates)
+            source_candidates = filter_candidates(source_candidates, threshold, max_candidates, min_candidates)
             if any(name == q["source_type"] for name, _ in source_candidates):
                 src_found = True
             for src_name, src_prob in source_candidates:
-                score = math.log(tgt_prob) + math.log(src_prob)
-                if score > best_score:
-                    path = registry.resolve(src_name, tgt_name)
-                    if path is not None:
+                path = registry.resolve(src_name, tgt_name)
+                if path is not None:
+                    all_paths.append(path)
+                    score = math.log(tgt_prob) + math.log(src_prob)
+                    if score > best_score:
                         best_score = score
-                        best_path = path
                         best_source = src_name
                         best_target = tgt_name
                         best_n_src = len(source_candidates)
 
         return {
             "q": q, "tgt_in": tgt_in, "src_found": src_found, "n_tgt": n_tgt,
-            "best_path": best_path, "best_score": best_score,
+            "all_paths": all_paths, "best_score": best_score,
             "best_source": best_source, "best_target": best_target, "best_n_src": best_n_src,
             "llm_calls": llm_calls,
             "latency_ms": total_latency, "prompt_tok": total_prompt, "completion_tok": total_completion,
@@ -190,7 +191,7 @@ def run_benchmark_reverse_probs(
 
     for r in results:
         q = r["q"]
-        best_path, best_score = r["best_path"], r["best_score"]
+        all_paths, best_score = r["all_paths"], r["best_score"]
         best_source, best_target = r["best_source"], r["best_target"]
         total_latency, llm_calls = r["latency_ms"], r["llm_calls"]
 
@@ -207,14 +208,16 @@ def run_benchmark_reverse_probs(
         report.record_latency(total_latency, r["prompt_tok"], r["completion_tok"])
         all_llm_calls.append(llm_calls)
 
-        path_found = best_path is not None
+        path_found = len(all_paths) > 0
         if path_found:
             path_found_count += 1
             stats["path_found"] += 1
 
         expected_tools = set(q.get("expected_tools", []))
-        resolved_tools = {t.name for t in best_path.tools} if best_path else set()
-        n_tools = len(best_path.tools) if best_path else 0
+        resolved_tools: set[str] = set()
+        for p in all_paths:
+            resolved_tools.update(t.name for t in p.tools)
+        n_tools = len(resolved_tools)
         precision, recall, f1 = report.record_tool_result(resolved_tools, expected_tools, n_tools, cat)
         report.record_query(
             q["id"], cat, expected_tools, resolved_tools,
@@ -224,7 +227,7 @@ def run_benchmark_reverse_probs(
             path_found=path_found,
             best_score=best_score if best_score > float("-inf") else None,
             llm_calls=llm_calls,
-            **query_graph_metrics(registry, best_source, best_target, best_path),
+            **query_graph_metrics(registry, best_source, best_target, all_paths[0] if all_paths else None),
         )
 
         expected_st = f"{q['source_type']}→{q['target_type']}"
@@ -290,12 +293,14 @@ def main():
                         help=f"Confidence threshold (default: {DEFAULT_THRESHOLD})")
     parser.add_argument("--max-candidates", type=int, default=DEFAULT_MAX_CANDIDATES,
                         help=f"Max candidates to keep (default: {DEFAULT_MAX_CANDIDATES})")
+    parser.add_argument("--min-candidates", type=int, default=DEFAULT_MIN_CANDIDATES,
+                        help=f"Min candidates to return (default: {DEFAULT_MIN_CANDIDATES})")
     parser.add_argument("--domain", default="k8s",
                         help="Tool domain to benchmark (default: k8s)")
     args = parser.parse_args()
 
     for model_name in args.models:
-        run_benchmark_reverse_probs(model_name, args.domain, args.n_completions, args.threshold, args.max_candidates)
+        run_benchmark_reverse_probs(model_name, args.domain, args.n_completions, args.threshold, args.max_candidates, args.min_candidates)
 
 
 if __name__ == "__main__":
