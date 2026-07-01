@@ -154,6 +154,7 @@ def run_benchmark(model_name: str, domain: str):
     print(f"  Path found:         {path_found_count}/{n} ({path_found_count/n:.0%})")
 
     report.print_tool_accuracy()
+    report.print_recall_decomposition()
     report.print_pruning()
     report.print_latency()
     report.print_tokens()

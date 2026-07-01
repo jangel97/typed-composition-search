@@ -51,7 +51,7 @@ class BenchmarkReport:
         stats = self.category_stats[category]
         stats["total"] = stats.get("total", 0) + 1
 
-        if expected_tools and resolved_tools:
+        if expected_tools:
             precision, recall, f1 = tool_set_metrics(resolved_tools, expected_tools)
             self.all_precision.append(precision)
             self.all_recall.append(recall)
@@ -125,6 +125,42 @@ class BenchmarkReport:
         print(f"\nTokens:")
         print(f"  Avg prompt:         {avg(self.all_prompt_tokens):.0f}")
         print(f"  Avg completion:     {avg(self.all_completion_tokens):.0f}")
+
+    def print_recall_decomposition(self):
+        """Print recall decomposition: Recall_e2e = P(correct) * R_correct + P(wrong) * R_wrong."""
+        correct_recalls = []
+        wrong_recalls = []
+        for q in self._per_query:
+            recall = q.get("recall", -1.0)
+            if recall < 0:
+                continue
+            src_ok = q.get("predicted_source") == q.get("expected_source")
+            tgt_ok = q.get("predicted_target") == q.get("expected_target")
+            if src_ok and tgt_ok:
+                correct_recalls.append(recall)
+            else:
+                wrong_recalls.append(recall)
+
+        n_total = len(correct_recalls) + len(wrong_recalls)
+        if n_total == 0:
+            return
+
+        p_correct = len(correct_recalls) / n_total
+        p_wrong = len(wrong_recalls) / n_total
+        r_correct = avg(correct_recalls) if correct_recalls else 0.0
+        r_wrong = avg(wrong_recalls) if wrong_recalls else 0.0
+        r_predicted = p_correct * r_correct + p_wrong * r_wrong
+        r_actual = avg(correct_recalls + wrong_recalls)
+
+        print(f"\nRecall Decomposition:")
+        print(f"  Recall_e2e = P(correct) x R_correct + P(wrong) x R_wrong")
+        print(f"  P(correct):         {p_correct:.2f} ({len(correct_recalls)}/{n_total})")
+        print(f"  P(wrong):           {p_wrong:.2f} ({len(wrong_recalls)}/{n_total})")
+        print(f"  R_correct:          {r_correct:.3f}")
+        print(f"  R_wrong:            {r_wrong:.3f}")
+        print(f"  Predicted recall:   {r_predicted:.3f}")
+        print(f"  Actual recall:      {r_actual:.3f}")
+        print(f"  Gap:                {abs(r_actual - r_predicted):.3f}")
 
     def base_result_dict(self, strategy: str, hallucinated: int = 0) -> dict:
         avg_tools = avg(self.all_tool_counts)
