@@ -124,9 +124,8 @@ Valid tool chain
 
 We propose \textbf{Typed Composition Routing}, a reformulation of tool routing that explicitly separates these two reasoning problems (Figure~\ref{fig:approach}). Tools are modeled as typed transformations between entity types (e.g., \texttt{get\_pod\_logs}: \texttt{Pod} $\rightarrow$ \texttt{PodLogs}), forming a directed graph where entity types are nodes and tools are edges. Given a user query, the LLM predicts the source and target entity types, after which graph search deterministically recovers the corresponding tool composition.
 
-Where direct tool routing maps a query to a tool sequence ($q \rightarrow \{t_1, \ldots, t_k\}$), Typed Composition Routing factorizes this into two independent steps: entity type prediction ($q \rightarrow (e_{\mathrm{src}}, e_{\mathrm{tgt}})$) followed by graph path recovery ($(e_{\mathrm{src}}, e_{\mathrm{tgt}}) \rightarrow [t_1, \ldots, t_l]$).
-Direct routing requires the model to jointly solve semantic inference and compositional planning over the entire tool catalog.
-This factorization decomposes the joint problem into two lower-complexity tasks with different computational characteristics: entity type prediction, which leverages the LLM's strength in semantic reasoning over a reduced label space, and graph path recovery, which is solved exactly by deterministic search.
+Where direct tool routing maps a query to a tool sequence ($q \rightarrow \{t_1, \ldots, t_k\}$), Typed Composition Routing factorizes this into two steps: entity type prediction ($q \rightarrow (e_{\mathrm{src}}, e_{\mathrm{tgt}})$) followed by graph path recovery ($(e_{\mathrm{src}}, e_{\mathrm{tgt}}) \rightarrow [t_1, \ldots, t_l]$).
+This decomposes the joint problem into entity type prediction, which leverages the LLM's strength in semantic reasoning, and graph path recovery, which is solved exactly by deterministic search.
 
 We evaluate the proposed formulation across multiple language models, tool ecosystems, and routing strategies spanning a diverse collection of enterprise domains. Our experiments demonstrate consistent improvements over direct tool selection while providing a simple analytical decomposition that explains end-to-end routing performance in terms of entity prediction accuracy and graph resolution.
 
@@ -140,5 +139,7 @@ In support of this formulation:
 \item We derive an \textbf{analytical decomposition} of end-to-end routing recall into entity prediction accuracy and graph reachability, enabling routing failures to be attributed to either component.
 
 \item We provide \textbf{empirical validation} across four language models, five tool domains, seven routing strategies, and 140 benchmark queries, demonstrating consistent improvements over direct tool selection while guaranteeing structural validity of all recovered tool chains.
+
+\item We validate the approach on a \textbf{production-scale MCP server} with 1,060 tools, where the typed composition graph is derived automatically from OpenAPI specifications without manual curation, demonstrating that the formulation extends beyond hand-constructed evaluation domains.
 
 \end{enumerate}

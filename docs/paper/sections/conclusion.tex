@@ -4,16 +4,16 @@
 We introduced Typed Composition Routing, a reformulation of tool routing as typed entity reasoning rather than direct tool selection.
 Instead of requiring language models to reason over large tool catalogs, our approach separates semantic reasoning from compositional reasoning: the LLM predicts entity types, while deterministic graph search recovers executable tool sequences.
 
-Across five domains and four language models, this formulation consistently outperforms direct tool selection, improving F1 in all 20 model--domain combinations while eliminating hallucinated tool invocations as a structural property of the graph.
+Across five benchmark domains and a production MCP server with over one thousand tools, this formulation consistently outperforms direct tool selection while eliminating hallucinated tool invocations as a structural property of the graph.
 The proposed recall decomposition reveals two complementary factors underlying routing performance: semantic prediction quality determines whether the correct entity types are identified, while graph topology shapes the degree of structural recovery after imperfect predictions.
-These two factors provide distinct, actionable levers for improving graph-constrained routing.
+These two factors provide distinct, actionable levers for improving the typed decomposition.
 
 More broadly, our results suggest that tool routing need not be formulated as direct prediction over tools.
 Reasoning over typed entities while delegating composition to graph algorithms provides a simpler, more reliable, and more interpretable alternative that scales naturally to large tool ecosystems without additional training.
 
 Beyond the routing algorithm itself, we envision typed composition graphs as a reusable representation for organizational tool ecosystems.
 Just as OpenAPI specifications describe individual interfaces, typed composition graphs could describe how tools compose around shared entities.
-Publishing such graphs alongside APIs would allow agent frameworks to perform graph-constrained tool routing without reconstructing tool relationships from documentation or examples, potentially providing a common interoperability layer for AI agents operating over heterogeneous tool ecosystems.
+Emerging tool interoperability protocols such as the Model Context Protocol (MCP) already standardize tool discovery and invocation; extending such protocols with typed output declarations would allow composition graphs to be constructed automatically across tool providers, enabling graph-constrained routing without manual graph construction.
 
 Future work includes automatic construction of typed composition graphs from API specifications, intent-aware and weighted graph search, support for non-linear workflow composition, empirical evaluation across larger and more diverse tool ecosystems, and integration with learned retrieval and planning methods.
 

@@ -21,7 +21,7 @@ The domains vary along three dimensions relevant to our hypotheses:
 
 CI/CD provides a particularly informative case.
 Although it contains 51 entity types for 54 tools (94\% type density), leaving almost no reduction in label space, it achieves the highest entity pruning (87\%).
-This demonstrates that graph-constrained routing derives its advantage from graph topology rather than simply reducing the number of prediction labels.
+This demonstrates that TCR derives its advantage from graph topology rather than simply reducing the number of prediction labels.
 
 Tool registries for Kubernetes, Ansible, GitHub, and CI/CD are constructed from their respective API documentation and operational workflows.
 The Shopify registry is derived from the Shopify Admin REST API and serves as a non-infrastructure domain to evaluate generality.
@@ -81,8 +81,8 @@ We compare TCR against six representative routing strategies.
     \item \textbf{Function Calling}: since modern LLM APIs increasingly expose native function-calling interfaces, we evaluate whether structured tool schemas improve routing compared to prompt-based selection. Tools are passed as OpenAI-compatible function schemas via the \texttt{tools} parameter.
     \item \textbf{Retrieval}: embedding-based retrieval selects the top-$k$ candidate tools before tool selection.
     \item \textbf{Graph}: Typed Composition Routing (ours).
-    \item \textbf{Graph-Reverse}: target-first graph routing with probability-based source selection using multiple model completions.
-    \item \textbf{Oracle}: graph search using ground-truth entity types, providing an upper bound on graph routing performance.
+    \item \textbf{Graph-Reverse}: target-first TCR variant with probability-based source selection using multiple model completions.
+    \item \textbf{Oracle}: graph search using ground-truth entity types, providing an upper bound on routing performance achievable with perfect entity prediction.
     \item \textbf{Model-Types}: entity prediction only, without graph search, isolating type prediction quality (results reported in Tables~\ref{tab:type-prediction} and~\ref{tab:recall-decomposition}).
 \end{enumerate}
 

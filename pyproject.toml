@@ -17,3 +17,4 @@ dependencies = [
 
 [dependency-groups]
 dev = ["pytest", "openai"]
+encoder = ["sentence-transformers>=3.0"]

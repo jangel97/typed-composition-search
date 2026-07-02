@@ -1,9 +1,7 @@
 \section{Method}
 \label{sec:method}
 
-We propose \emph{Typed Composition Routing (TCR)}, a formulation of tool routing that separates semantic reasoning from compositional reasoning.
-Instead of predicting executable tools directly, a language model predicts the entity types involved in a query, while deterministic graph search recovers a valid tool composition.
-LLMs perform semantic reasoning over entity types; graph search performs compositional reasoning over valid transformations.
+We now formalize \emph{Typed Composition Routing (TCR)}, the decomposition motivated in Section~\ref{sec:background}.
 
 \subsection{Problem Formulation}
 \label{sec:problem-def}
@@ -142,11 +140,7 @@ This decomposition separates routing correctness into two independent components
 \subsection{Graph-Constrained Reasoning}
 \label{sec:graph-constraint}
 
-The primary advantage of this formulation is not simply that there are fewer entity types than tools.
-Rather, the graph itself constrains the reasoning space.
-
 Once a target entity type has been predicted, reverse reachability eliminates every source type that cannot reach that target through any valid composition.
-
 We quantify this structural constraint using the \emph{entity pruning} metric.
 
 Let

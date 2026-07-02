@@ -22,15 +22,16 @@ Haiku-4.5 frequently abstained from emitting tool calls when presented with larg
 The remaining models selected fewer correct tools than the prompt-based baseline.
 These results suggest that native function calling alone does not solve large-scale tool routing in our benchmark, and that the prompt-based baseline is the stronger direct-selection comparator.
 
-Retrieval-based routing provides modest improvements over the baseline but falls well short of graph routing.
+Retrieval-based routing provides modest improvements over the baseline but falls well short of TCR.
 Retrieval reduces the search space by filtering semantically similar tools, but does not enforce compositional validity.
 The retrieved tools may be individually relevant but not necessarily composable into a valid workflow, which is precisely the problem that the typed graph addresses.
 
 Graph-reverse routing, which uses multiple completions with probability-based source selection, performs well for smaller models but degrades for larger ones: GPT-OSS-20B yields F1 = 0.000 due to degenerate probability distributions, and Haiku-4.5 was not evaluated with this strategy.
 These results suggest that the simpler target-first single-completion approach (Graph) is more robust across model families.
 
-The oracle strategy (graph search with ground-truth entity types) achieves F1 = 1.000 across all five domains.
-This result confirms that the typed composition graph has complete coverage, that every benchmark workflow is representable as a graph path, and that all remaining routing errors originate from entity type prediction rather than from limitations of the graph structure itself.
+The oracle strategy isolates graph coverage from entity prediction quality by providing ground-truth entity types directly to graph search.
+Oracle F1 = 1.000 across all five domains confirms that every benchmark workflow is representable as a graph path.
+All remaining routing errors under non-oracle strategies therefore originate from entity type prediction rather than from limitations of the graph structure itself.
 
 \input{figures/table_strategy_comparison}
 
@@ -119,5 +120,5 @@ We measure average prompt tokens per query across all model--domain combinations
 The baseline includes the full tool catalog (name and typed signature per tool) in the system prompt, averaging 1,823 prompt tokens per query (range: 847--3,033 across domains).
 Graph-based routing presents only the list of entity types for type prediction, averaging 683 prompt tokens (range: 488--1,004).
 The resulting 50--70\% reduction comes from replacing the full tool catalog with a smaller set of entity type labels.
-The savings scale naturally with catalog size: as tool registries grow, the baseline must include proportionally more tool descriptions in the prompt, while graph routing presents only entity types whose count grows more slowly.
+The savings scale naturally with catalog size: as tool registries grow, the baseline must include proportionally more tool descriptions in the prompt, while TCR presents only entity types whose count grows more slowly.
 The relative advantage therefore increases with catalog size, directly addressing the scalability concern raised in Section~\ref{sec:introduction}.

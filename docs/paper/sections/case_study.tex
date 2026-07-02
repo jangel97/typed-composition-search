@@ -1,0 +1,139 @@
+\section{Production-Scale Evaluation}
+\label{sec:production-eval}
+
+The preceding evaluation demonstrates that Typed Composition Routing improves tool selection across five domains with 54--170 tools each.
+A central practical question remains: does TCR remain effective on a production-scale tool ecosystem with significantly more tools, and can the typed composition graph be constructed automatically rather than by hand?
+We address both questions by evaluating on the official Ansible Automation Platform (AAP) MCP Server~\footnote{\url{https://github.com/ansible/aap-mcp-server}}, an open-source Model Context Protocol server that exposes 1,060 API operations derived from four enterprise services.
+The typed composition graph for this evaluation is derived automatically from the server's OpenAPI specifications, without manual curation.
+
+\subsection{Tool Surface}
+\label{sec:aap-tools}
+
+The AAP MCP Server provides a unified tool interface to four services: Controller (615 operations), Event-Driven Ansible (110), Galaxy (141), and Gateway (194).
+Together, these services expose 1,060 tool operations covering job management, inventory automation, event-driven workflows, content distribution, and access control.
+
+At this scale, presenting the full tool catalog to the language model becomes impractical.
+Encoding all 1,060 tools as OpenAI-compatible function schemas---including parameter definitions, JSON Schema metadata, and descriptions---produces a prompt of 40,961 tokens before the user query is even appended, exceeding the context window of Qwen3-14B (40,960 tokens) and preventing execution entirely.
+Even as plain text descriptions, the full catalog requires approximately 18,000 prompt tokens per query.
+
+\subsection{Automatic Graph Construction}
+\label{sec:auto-graph}
+
+Unlike the benchmark domains in Sections~\ref{sec:experimental-setup}--\ref{sec:analysis}, where typed composition graphs were manually constructed from API documentation, the AAP graph is derived automatically from the server's OpenAPI specifications using deterministic heuristics.
+No language model is involved in graph construction.
+
+The construction pipeline proceeds in three stages.
+First, the parser extracts typed tool edges from three signal sources:
+
+\begin{itemize}
+    \item \textbf{Path structure:} URL patterns such as \texttt{/inventories/\{id\}/hosts/} establish typed relationships (\texttt{Inventory}~$\rightarrow$~\texttt{Host}).
+    \item \textbf{HTTP method and operation ID:} Suffixes such as \texttt{\_list}, \texttt{\_retrieve}, and \texttt{\_create} determine the transformation type.
+    \item \textbf{Schema references:} Response schema references identify output entity types.
+\end{itemize}
+
+Second, schema normalization collapses the 247 OpenAPI schema components to 79 canonical entity types through deterministic rules (e.g., \texttt{PaginatedHostList}, \texttt{HostDetail}, and \texttt{PatchedHost} all map to \texttt{Host}).
+Third, the normalized types and tool edges are assembled into a typed composition graph containing 79 entity types and 1,060 tool edges.
+
+The graph was frozen before any benchmark queries were authored.
+Queries were written from representative operator workflows based on domain knowledge, then annotated mechanically using the frozen graph as oracle.
+
+\subsection{Results}
+\label{sec:aap-results}
+
+We evaluate three models (Granite 4.1 8B, Qwen3-14B, Claude Haiku 4.5) on 47 queries spanning six categories, designed as representative operator workflows for external validation on a production tool surface.
+Two strategies are compared: the text baseline (all 1,060 tools as text descriptions) and TCR (type prediction over 79 entity types followed by graph search).
+Function calling is excluded because serializing all 1,060 function schemas exceeds the available context window before the user prompt is appended.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{l c c c c c}
+\toprule
+\textbf{Model} & \textbf{Strategy} & \textbf{F1} & \textbf{Prec.} & \textbf{Rec.} & \textbf{Halluc.} \\
+\midrule
+\multirow{2}{*}{Granite 8B}
+    & Baseline & 0.61 & 0.58 & 0.69 & 3 \\
+    & TCR      & \textbf{0.74} & \textbf{0.74} & \textbf{0.73} & \textbf{0} \\
+\midrule
+\multirow{2}{*}{Qwen3-14B}
+    & Baseline & 0.66 & 0.63 & 0.73 & 2 \\
+    & TCR      & \textbf{0.80} & \textbf{0.81} & \textbf{0.80} & \textbf{0} \\
+\midrule
+\multirow{2}{*}{Haiku 4.5}
+    & Baseline & 0.58 & 0.50 & 0.74 & 0 \\
+    & TCR      & \textbf{0.91} & \textbf{0.91} & \textbf{0.91} & \textbf{0} \\
+\bottomrule
+\end{tabular}
+\caption{Results on the official AAP MCP Server (1,060 tools automatically derived from OpenAPI specifications, 79 canonical entity types, 47 operator workflow queries). TCR improves F1 for all three models. The oracle (ground-truth entity types) achieves F1 = 1.000, confirming that every benchmark query is representable in the automatically constructed graph.}
+\label{tab:aap-results}
+\end{table}
+
+Table~\ref{tab:aap-results} presents the results.
+TCR improves F1 for all three models ($\Delta$F1: +0.13 to +0.33), with zero hallucinated tool invocations.
+The oracle evaluation (graph search with ground-truth entity types) achieves F1~=~1.000, confirming that every benchmark query is representable in the automatically constructed graph.
+
+\paragraph{Type prediction at scale.}
+
+Table~\ref{tab:aap-type-prediction} reports entity type prediction accuracy on the AAP domain.
+Despite predicting over a space of 79 automatically derived entity types, models achieve 72--91\% exact match accuracy, comparable to the main benchmark (61\% average across five hand-constructed domains).
+Target prediction (85--94\%) is consistently easier than source prediction (77--91\%), matching the pattern observed in Section~\ref{sec:type-prediction}: users describe desired outcomes more clearly than starting points.
+These results confirm that entity type classification remains tractable at production scale.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{l c c c}
+\toprule
+\textbf{Model} & \textbf{Source} & \textbf{Target} & \textbf{Exact Match} \\
+\midrule
+Granite 8B   & 0.77 & 0.85 & 0.72 \\
+Qwen3-14B    & 0.81 & 0.91 & 0.79 \\
+Haiku 4.5    & \textbf{0.91} & \textbf{0.94} & \textbf{0.91} \\
+\bottomrule
+\end{tabular}
+\caption{Entity type prediction accuracy on the AAP MCP Server (79 entity types). Accuracy is comparable to or higher than the main benchmark despite the automatically derived type system.}
+\label{tab:aap-type-prediction}
+\end{table}
+
+Per-category results further confirm that TCR performs well across query types at this scale.
+Multi-hop queries, which require composing two or more tools, show the largest improvements: Granite 8B achieves F1 = 0.97 under TCR compared to 0.68 under the baseline, and Haiku 4.5 achieves perfect F1 = 1.00 on both clean and multi-hop categories.
+Ambiguous queries remain the hardest category (F1 = 0.00--0.60), consistent with the main benchmark findings.
+
+\paragraph{Prompt reduction.}
+
+TCR reduces average prompt tokens from approximately 18,000 to 1,100 per query (94\% reduction).
+This reduction grows with catalog size: the five benchmark domains average a 63\% reduction with 54--170 tools, while the AAP domain achieves 94\% with 1,060 tools.
+Because TCR presents only entity types to the language model, prompt costs scale with the number of entity types rather than the number of tools.
+As tool catalogs grow, the relative advantage increases, directly addressing the scalability concern raised in Section~\ref{sec:introduction}.
+
+\paragraph{Model ranking inversion.}
+
+Under the text baseline, Qwen3-14B achieves the highest F1 (0.66) and Claude Haiku 4.5 the lowest (0.58).
+Under TCR, this ranking inverts: Haiku achieves the highest F1 (0.91) and Granite 8B the lowest (0.74).
+The two strategies require different capabilities: the baseline rewards scanning long tool lists, while TCR rewards entity type classification.
+This inversion is consistent with TCR changing the nature of the routing task rather than simply making it easier.
+
+\paragraph{Recall decomposition.}
+
+The decomposition from Eq.~\ref{eq:recall-decomposition} fits exactly on this domain: the gap between predicted and actual recall is 0.000 for all three models.
+When entity types are correct, recall is 1.000.
+$R_{\text{wrong}}$ is near zero (0.000--0.050), contrasting with the denser benchmark graphs where $R_{\text{wrong}}$ averages 0.292.
+This is consistent with the fault tolerance analysis in Section~\ref{sec:fault-tolerance}: the AAP graph is sparser, providing fewer opportunities for partial recovery under wrong type predictions.
+
+\subsection{Discussion}
+\label{sec:aap-discussion}
+
+These results support three observations.
+
+First, typed composition graphs can be derived automatically from API specifications.
+The AAP graph was constructed from the official MCP server's OpenAPI schemas using deterministic heuristics, without manual curation or language model involvement.
+While automatic construction depends on consistent RESTful naming conventions and may not generalize to all API surfaces, it demonstrates that manual graph construction is not a fundamental requirement of the approach.
+
+Second, TCR scales favorably as tool catalogs grow.
+At 1,060 tools, function calling exceeds context limits and the text baseline consumes 18,000 prompt tokens per query.
+TCR operates over 79 entity types regardless of how many tools connect them, achieving a 94\% prompt reduction.
+This scaling property is a direct consequence of the formulation: the language model reasons over entity types, whose count grows more slowly than the number of tools.
+
+Third, the approach has been validated on a real production MCP server rather than a purpose-built benchmark.
+The tool surface, entity types, and graph structure are all derived from a production system---the official AAP MCP server containing over one thousand operations across four enterprise services.
+These results suggest that TCR is applicable beyond manually constructed evaluation domains and can operate over production MCP servers at scale.

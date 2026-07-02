@@ -69,30 +69,16 @@ For example, the query
 mentions the entity types \texttt{Pod} and \texttt{Node} without referring to
 any specific tool.
 
-This observation suggests separating semantic reasoning from compositional
-reasoning. Language models excel at mapping natural language to semantic
-concepts, whereas graphs naturally encode structural constraints over valid
-compositions. Rather than reasoning directly about tools, the language model
-predicts entity types, and graph search recovers a valid sequence of tool
-applications connecting them.
-
-Formally, a tool registry induces a typed directed graph whose vertices
+This observation suggests that tool routing should operate over entity types
+rather than tools directly.
+A tool registry naturally induces a typed directed graph whose vertices
 represent entity types and whose edges represent executable transformations.
-Tool routing therefore becomes the problem of recovering a valid path between
+Tool routing then becomes the problem of recovering a valid path between
 predicted source and target entity types.
 
 The benefit of this reformulation is not simply that there may be fewer entity
-types than tools. In some domains, the two are nearly equal
-(Section~\ref{sec:experimental-setup}). Instead, the graph itself constrains
-the reasoning process. Once a target entity type is predicted, reverse
-reachability immediately eliminates source types that cannot participate in any
-valid composition. We quantify this structural reduction through entity pruning
-(Section~\ref{sec:graph-constraint}), observing 56--87\% average pruning across
-five domains, including domains where entity types and tools are nearly in
-one-to-one correspondence.
-
-This decomposition assigns each component the reasoning task for which it is
-best suited. The language model performs semantic inference over entity types,
-while graph search performs compositional reasoning over executable
-transformations. As a result, valid tool sequences are recovered through graph
-structure rather than inferred directly by the language model.
+types than tools---in some domains, the two are nearly equal
+(Section~\ref{sec:experimental-setup}). Rather, the graph itself constrains
+the reasoning process: once a target entity type is predicted, reverse
+reachability eliminates source types that cannot participate in any valid
+composition (Section~\ref{sec:graph-constraint}).

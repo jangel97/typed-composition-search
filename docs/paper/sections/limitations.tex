@@ -24,11 +24,11 @@ Weighted graph search using operation type or execution cost is a natural extens
 Typed Composition Routing requires a typed composition graph to be constructed before routing can begin.
 In our experiments, each domain registry was manually authored from API documentation, representing additional upfront effort compared to approaches that operate directly over tool catalogs.
 This cost is amortized over all subsequent queries, but it remains a barrier to adoption in rapidly evolving tool ecosystems.
-Automatically deriving typed composition graphs from API specifications (e.g., OpenAPI schemas) is a non-trivial open problem, as it requires resolving implicit entity relationships that are not always explicit in schema definitions.
+Section~\ref{sec:production-eval} demonstrates that automatic derivation from OpenAPI specifications is feasible for RESTful APIs with consistent naming conventions, but generalization to arbitrary API surfaces remains an open problem.
 
 \paragraph{Entity Type System Quality.}
 
-Even when a graph is available, the effectiveness of graph routing depends on the granularity of the entity type system.
+Even when a graph is available, the effectiveness of TCR depends on the granularity of the entity type system.
 Overly fine-grained types increase prediction difficulty, while overly coarse types weaken graph constraints by introducing unnecessary connectivity.
 TCR requires the graph to encode the semantic distinctions necessary for composition.
 Benchmarks or domains whose type system is too coarse (e.g., only modality-level types) collapse distinct workflows into identical graph paths, preventing the graph from disambiguating tool sequences.

@@ -6,5 +6,6 @@ As Large Language Model (LLM) agents integrate with increasingly large tool ecos
 We propose \textbf{Typed Composition Routing}, which reformulates tool routing by separating semantic reasoning from compositional reasoning. Instead of selecting executable tools directly, the LLM predicts source and target entity types, while graph search deterministically recovers valid tool compositions from a typed transformation graph. This decomposition shifts the LLM's role from tool selection to entity classification, delegating composition to the graph.
 
 Across four language models, five tool domains (54--170 tools each), and 140 benchmark queries, the proposed formulation improves F1 in all 20 model--domain combinations (average $\Delta$F1 = +0.32) without any training or fine-tuning. The graph structure eliminates hallucinated tool invocations by construction, and a derived recall decomposition shows that end-to-end routing performance separates cleanly into entity prediction accuracy and graph reachability.
+A production-scale evaluation on an MCP server with 1,060 tools, where the typed graph is derived automatically from OpenAPI specifications, confirms that the approach extends to real-world tool ecosystems at scale.
 
 \end{abstract}
