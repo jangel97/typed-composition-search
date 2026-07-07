@@ -92,7 +92,7 @@ print([t.name for t in path.tools])  # ['get_deployment', 'get_pods', 'select_po
 
 ### `Tool(name, input_types, output_types, description="")`
 
-A typed transformation. Frozen dataclass.
+A typed transformation. Frozen dataclass. Multiple `input_types` are treated as OR (the tool is reachable from any single input type), not AND. The graph models sequential composition; tools requiring multiple inputs simultaneously are not supported.
 
 ### `Registry`
 

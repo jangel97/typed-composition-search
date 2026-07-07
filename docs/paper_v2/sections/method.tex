@@ -1,0 +1,128 @@
+
+\section{Method}
+\label{sec:method}
+
+\subsection{Problem Formulation}
+\label{sec:problem-def}
+
+Existing approaches formulate tool routing as direct selection from a catalog.
+Given a query $q$, a model selects tools:
+
+\begin{equation}
+    g(q) \rightarrow \{t_1, \ldots, t_k\} \subseteq \mathcal{T}
+\end{equation}
+
+This requires the model to simultaneously identify relevant tools and produce a valid execution order, with no structural guarantee on the result.
+
+We instead formulate routing over typed entities.
+Let $\mathcal{E} = \{e_1, \ldots, e_n\}$ denote entity types in a domain (e.g., \texttt{Pod}, \texttt{Namespace}, \texttt{Deployment}).
+Each tool is a typed transformation:
+
+\begin{equation}
+    t_k : e_i \rightarrow e_j,
+    \qquad
+    e_i,e_j \in \mathcal{E}.
+    \label{eq:tool-transform}
+\end{equation}
+
+The objective is to recover an ordered tool sequence $[t_1,\ldots,t_l]$ that transforms a source entity into the desired target, where the output type of every tool matches the input type of the next.
+
+\subsection{Typed Composition Graph}
+\label{sec:typed-graph}
+
+The tool registry induces a directed graph
+
+\[
+G=(\mathcal{E},\mathcal{T}),
+\]
+
+where entity types are nodes and tools are directed edges.
+An edge from $e_i$ to $e_j$ exists whenever a tool $t_k:e_i\rightarrow e_j$ is available.
+Multiple tools may connect the same pair, and tools with multiple input or output types generate multiple edges.
+
+In this representation, a valid tool invocation corresponds to a graph edge and a valid multi-step workflow corresponds to a graph path.
+
+\subsection{Typed Composition Routing}
+\label{sec:tcr}
+
+Routing is decomposed into two stages.
+First, the LLM predicts source and target entity types:
+
+\begin{equation}
+    f(q)
+    \rightarrow
+    (\hat e_{\mathrm{src}},
+     \hat e_{\mathrm{tgt}})
+    \label{eq:type-prediction}
+\end{equation}
+
+Second, deterministic graph search recovers the shortest valid composition:
+
+\begin{equation}
+    \pi(q)
+    =
+    \operatorname{Path}
+    \left(
+        G,
+        f_{\mathrm{src}}(q),
+        f_{\mathrm{tgt}}(q)
+    \right)
+    \label{eq:routing-function}
+\end{equation}
+
+where $\operatorname{Path}$ returns the shortest tool sequence connecting the predicted types via breadth-first search.
+If no valid path exists, the system returns an empty result rather than generating an invalid composition.
+
+Two structural properties follow directly.
+
+\paragraph{Proposition 1 (Structural validity).}
+If $\pi(q)$ returns a non-empty sequence $[t_1, \ldots, t_l]$, then (i) every $t_i \in \mathcal{T}$ belongs to the registry, and (ii) for every adjacent pair $(t_i, t_{i+1})$, the output type of $t_i$ matches the input type of $t_{i+1}$.
+
+\emph{Proof.}
+Each edge in $G$ is a registered tool, giving (i).
+Adjacent edges share a node (entity type), giving (ii) by construction. \hfill $\square$
+
+\paragraph{Corollary (Zero hallucinated tools).}
+$\pi(q)$ cannot return a tool $t \notin \mathcal{T}$, since graph search traverses only registered edges.
+
+\subsection{Graph-Constrained Reasoning}
+\label{sec:graph-constraint}
+
+Once a target type has been predicted, reverse reachability eliminates every source type that cannot reach that target through any valid composition.
+We quantify this using \emph{entity pruning}:
+
+\begin{equation}
+    \mathrm{pruning}(e_{\mathrm{tgt}})
+    =
+    1-
+    \frac{
+        |R^{-1}(e_{\mathrm{tgt}})|
+    }{
+        |\mathcal{E}|
+    }
+    \label{eq:entity-pruning}
+\end{equation}
+
+where $R^{-1}(e_{\mathrm{tgt}})$ is the set of entity types from which $e_{\mathrm{tgt}}$ is reachable.
+A pruning value of 0.87 means 87\% of source candidates are structurally eliminated.
+This reduction depends only on graph topology and applies equally to any type prediction model.
+
+\subsection{Recall Decomposition}
+\label{sec:recall-decomp}
+
+Because routing decomposes into type prediction followed by graph search, end-to-end recall can be conditioned on prediction correctness:
+
+\begin{equation}
+    R
+    =
+    P_c R_c
+    +
+    (1-P_c) R_{\text{wrong}}
+    \label{eq:recall-decomposition}
+\end{equation}
+
+where $P_c$ is the probability that both predicted types are correct,
+$R_c$ is recall conditioned on correct predictions,
+and $R_{\text{wrong}}$ is recall conditioned on incorrect predictions.
+
+This decomposition separates LLM quality ($P_c$) from graph quality ($R_c$) and provides two independent levers for improvement: better entity type prediction improves $P_c$; richer graph connectivity improves $R_{\text{wrong}}$ (partial recovery under errors).

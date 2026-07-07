@@ -100,7 +100,7 @@ QUERIES = [
         "query": "Get logs for the payment service",
         "source_type": "Service",
         "target_type": "PodLogs",
-        "expected_tools": [],
+        "expected_tools": ["get_service_pods", "select_pod", "get_pod_logs"],
     },
     {
         "id": "ambiguous_status",
@@ -164,7 +164,7 @@ QUERIES = [
         "query": "Which microservice owns this route?",
         "source_type": "Route",
         "target_type": "Service",
-        "expected_tools": [],
+        "expected_tools": ["get_route_service"],
     },
     {
         "id": "synonym_containers",
@@ -192,7 +192,7 @@ QUERIES = [
         "query": "Hey, I think the payment service is broken. Can you show me the logs from whatever pods are backing it?",
         "source_type": "Service",
         "target_type": "PodLogs",
-        "expected_tools": [],
+        "expected_tools": ["get_service_pods", "select_pod", "get_pod_logs"],
     },
     {
         "id": "noisy_wrong",

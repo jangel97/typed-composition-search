@@ -1,0 +1,156 @@
+
+\section{Discussion}
+\label{sec:discussion}
+
+The results in Section~\ref{sec:results} provide empirical evidence that tool routing can indeed be decomposed into semantic reasoning over entity types and compositional reasoning over a typed graph.
+We now interpret what this decomposition means and where it applies.
+
+\paragraph{Why does the decomposition help?}
+
+The improvements arise from three complementary mechanisms.
+First, the LLM's prediction target shifts from the tool catalog to a smaller entity type space, which graph reachability further constrains by 56--87\%.
+Second, graph search constrains outputs to compositionally valid paths, exposing only 1.4--2.0 candidate tools per query instead of the full registry.
+Third, every returned workflow is structurally valid by construction, eliminating hallucinated tool invocations entirely.
+These reductions are determined by graph topology and apply independently of the LLM used for type prediction.
+
+The magnitude of improvement is predictable from graph topology.
+The tool-to-type ratio $|T|/|E|$ quantifies how much the decomposition compresses the selection problem: AAP has a 13:1 ratio (1,060 tools, 79 types) while Stripe has 3:1 (536 tools, 163 types).
+On AAP, where the ratio is highest, Gemini 2.5 Flash improves from F1 = 0.29 (function calling) to 0.81 (few-shot TCR)---a nearly 3$\times$ gain.
+On Stripe, where the ratio is lower and the type space is larger, the same model improves from 0.44 to 0.79.
+The decomposition helps more when many tools collapse into few types, and this effect is amplified for less capable models: the Flash baseline-to-TCR gap is wider than the Pro gap on both domains.
+
+\paragraph{Does the decomposition present a more tractable task?}
+
+Across all model--domain combinations, LLMs correctly predict both entity types in 61\% of cases, compared to only 12\% where direct tool selection achieves perfect results (F1 = 1.0).
+Although the two metrics are not directly comparable---entity type prediction requires two correct labels while perfect tool selection requires an exact multi-step sequence---the consistently higher accuracy across all models supports the interpretation that the decomposed formulation presents a more tractable reasoning task than joint tool selection.
+An intuitive explanation is that users naturally describe domain objects (``pods'', ``payments'', ``credentials'') rather than implementation mechanisms (\texttt{list\_pods}, \texttt{GetPaymentIntents}, \texttt{credentials\_list}).
+Entity type prediction aligns with how queries are already phrased; tool selection requires the model to bridge from natural concepts to API-specific naming conventions.
+
+\paragraph{What is the error profile?}
+
+The decomposition shifts the error profile from false positives to false negatives.
+Direct selection produces hallucinated tools, invalid compositions, and missing tools.
+TCR eliminates the first two categories; remaining errors arise only from incorrect entity type predictions.
+Average precision increases from 0.48 to 0.88 (+83\%), while recall increases from 0.67 to 0.83.
+Whether this conservative failure mode is desirable depends on the application: in safety-critical domains, returning no result is preferable to invoking incorrect tools.
+
+\paragraph{Two-layer evaluation.}
+
+Typed Composition Routing separates tool routing into two layers.
+The first layer is entity-level routing: the model predicts source and target entity types, and the graph restricts the search space to tools that validly connect those types.
+This layer does not claim to fully resolve user intent; it identifies the graph-valid candidate frontier.
+The second layer is intent-level selection: choosing the specific tool or action among those candidates, such as selecting \texttt{list\_projects} rather than \texttt{create\_project} when the user asks to inspect existing projects.
+
+This distinction matters for evaluation.
+A prediction may be graph-valid even when it differs from the single reference tool annotation.
+In such cases, the current intent-level F1 can understate the routing quality by penalizing valid alternate tools that connect the same entity pair.
+We therefore report graph-valid metrics alongside the existing intent-level metrics.
+Graph-valid precision measures whether predicted tools belong to the candidate set induced by the ground-truth entity pair, while intent F1 continues to measure whether the prediction matches the specific annotated tool answer.
+
+\paragraph{Distinction from hierarchical routing.}
+
+A natural objection is that TCR is simply hierarchical tool selection under a different name---first narrow the candidate set, then pick tools from it.
+The distinction is deeper than the topology.
+Hierarchical methods still predict \emph{tools} at every level: they cluster tools into categories and route the query through successively finer-grained tool subsets \cite{qin2024toolllm, li2025toolscope}.
+The LLM's prediction target remains a tool at every stage; the hierarchy only reduces how many tools it must consider at once.
+TCR changes the prediction target itself: the LLM predicts \emph{entity types}, and tools become a deterministic consequence of that prediction via graph search.
+No tool name ever appears in the LLM's output.
+This shift is what enables the structural guarantees---compositional validity, zero hallucination, analytically decomposable recall---that hierarchical selection cannot provide, because any method that asks the LLM to select tools can produce invalid or hallucinated selections at the final stage.
+
+\paragraph{Relationship to retrieval-based selection.}
+
+Retrieval-augmented tool selection ranks tools by embedding similarity to the query, reducing the candidate set before the LLM selects.
+This is complementary to TCR rather than a direct alternative: retrieval retrieves individual tools, while many queries require multi-step compositions whose structure is determined by typed relationships between entities, not semantic similarity.
+For instance, a query requesting ``all artifacts of the latest build'' requires first retrieving the build and then listing its artifacts---embedding similarity may surface the second tool but miss the prerequisite step.
+TCR recovers the full composition by construction, and retrieval could serve as a reranker within the candidate set that graph search produces.
+
+\paragraph{Asymmetric comparison with function calling.}
+
+Native function calling benefits from model-level fine-tuning: LLMs used in our evaluation (Qwen3, Granite, Haiku) were trained on large corpora of tool-calling examples, making direct tool selection a \emph{trained} capability.
+By contrast, entity type prediction under TCR is performed zero-shot via prompting---the LLM receives a list of entity types and a natural language query with no task-specific training.
+Despite this asymmetry, TCR outperforms function calling across all model--domain combinations.
+
+The recall decomposition (Eq.~\ref{eq:recall-decomposition}) makes the improvement path explicit.
+When graph reachability is high ($R_c \approx 1.0$), end-to-end recall reduces to $\text{Recall} \approx P(\text{types correct})$: type prediction accuracy directly determines routing performance.
+A domain-specific classifier fine-tuned over $|E|$ entity types faces a strictly smaller classification problem than a tool selector choosing among $|T|$ tools ($|E| < |T|$ in all evaluated domains).
+This suggests that a fine-tuned type predictor---whether a small encoder model or a prompted LLM with in-context examples---could close the remaining accuracy gap while preserving the structural guarantees of graph search.
+
+Figure~\ref{fig:improvement-path} quantifies this trajectory across precision, recall, and F1.
+Precision is already high and relatively stable ($r = 0.60$): the graph constraint ensures structural validity regardless of type prediction quality.
+Recall is the bottleneck ($r = 0.59$), tracking type prediction accuracy directly---this is where a fine-tuned predictor would have the largest impact.
+F1 shows the strongest correlation ($r = 0.72$, $p < 0.001$), reflecting both effects.
+The observed trend suggests that further improvements in entity type prediction are likely to translate into higher routing performance, though the specific gains will depend on domain structure and error distribution.
+Since type prediction is a classification task over $|E|$ entity types (not $|T|$ tools), it is amenable to standard supervised training with relatively modest annotation effort.
+
+The preceding analysis establishes the \emph{decomposition} as the primary contribution: it improves every model--domain combination we tested, regardless of model scale or prompting strategy.
+A natural follow-up question is whether the semantic component---entity type prediction---must be performed by a large language model at all, or whether a compact domain-specific classifier can serve the same role.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/improvement_path.pdf}
+\caption{Entity type prediction accuracy vs.\ precision, recall, and F1 across 20 model--domain combinations. All TCR points (zero-shot type prediction) exceed the average baseline (red dotted lines), which uses models fine-tuned for tool selection. Precision is already high and stable (graph constraint); recall is the primary bottleneck, tracking type prediction accuracy. Green regions indicate the range accessible to a fine-tuned type predictor with higher accuracy.}
+\label{fig:improvement-path}
+\end{figure*}
+
+\paragraph{Can the semantic component be replaced?}
+
+To answer this, we train domain-specific type predictors on Stripe (536 tools, 163 types)\footnote{Stripe encoder: \url{https://github.com/jangel97/stripe-type-predictor}} and AAP (1,060 tools, 79 types)\footnote{AAP encoder: \url{https://github.com/jangel97/aap-type-predictor}}.
+Each uses a frozen sentence encoder (all-mpnet-base-v2) with a shared hidden layer and two classification heads ($\sim$281K and $\sim$475K trainable parameters respectively), trained on hand-written examples with all test queries held out.
+We also evaluate Gemini 2.5 Pro with \textbf{few-shot TCR} (10 in-context examples, excluding test type pairs) for a fair comparison.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}ll ccc@{}}
+\toprule
+\textbf{Strategy} & \textbf{Model} & \textbf{P} & \textbf{R} & \textbf{F1} \\
+\midrule
+\multicolumn{5}{@{}l}{\textit{Stripe (536 tools, 163 types, 120 queries)}} \\
+\midrule
+Function calling  & Gem.\ 2.5 Pro & .36 & .35 & .35 \\
+Zero-shot TCR     & Gem.\ 2.5 Pro & .39 & .35 & .36 \\
+Text baseline     & Gem.\ 2.5 Pro & .78 & .82 & .78 \\
+Few-shot TCR      & Gem.\ 2.5 Pro & .85 & .83 & .84 \\
+\textbf{Encoder TCR} & \textbf{281K} & \textbf{.85}{\scriptsize$\pm$.01} & \textbf{.81}{\scriptsize$\pm$.01} & \textbf{.82}{\scriptsize$\pm$.01} \\
+\midrule
+\multicolumn{5}{@{}l}{\textit{AAP (1,060 tools, 79 types, 122 queries)}} \\
+\midrule
+Function calling  & Gem.\ 2.5 Pro & .33 & .36 & .33 \\
+Text baseline     & Gem.\ 2.5 Pro & .45 & .59 & .50 \\
+Zero-shot TCR     & Gem.\ 2.5 Pro & .73 & .73 & .73 \\
+Few-shot TCR      & Gem.\ 2.5 Pro & .83 & .82 & .82 \\
+\textbf{Encoder TCR} & \textbf{475K} & \textbf{.84}{\scriptsize$\pm$.01} & \textbf{.85}{\scriptsize$\pm$.01} & \textbf{.84}{\scriptsize$\pm$.01} \\
+\bottomrule
+\end{tabular}
+\caption{Encoder TCR vs.\ Gemini 2.5 Pro on two production-scale APIs. Encoder results report 5-fold CV mean $\pm$ std. The encoder matches or exceeds a frontier model with few-shot prompting on both domains, despite being $\sim$1000$\times$ smaller.}
+\label{tab:encoder-results}
+\end{table}
+
+Table~\ref{tab:encoder-results} presents the results.
+The answer is yes: the encoder matches or exceeds Gemini 2.5 Pro with few-shot TCR on both domains (Stripe: 0.82 vs.\ 0.84; AAP: 0.84 vs.\ 0.82), despite being approximately 1000$\times$ smaller.
+Note that the largest gains come from the decomposition itself, not the choice of predictor: Gemini's function calling yields F1 = 0.35 on Stripe and 0.33 on AAP, but applying TCR to the same model---even zero-shot---lifts performance to 0.36 and 0.73 respectively.
+Few-shot prompting further improves Gemini's TCR to 0.84 and 0.82.
+The encoder then matches these results without requiring an LLM at inference time.
+
+The encoder and Gemini show complementary strengths: the encoder wins on queries requiring domain-specific vocabulary (synonym, ambiguous, noisy), while Gemini handles clean structured queries better.
+This validates the recall decomposition's prediction: a trained type predictor closes the remaining accuracy gap while preserving the structural guarantees of graph search, demonstrating that tool routing need not depend on frontier models.
+
+\paragraph{Limitations.}
+
+The formulation assumes tools can be modeled as typed transformations between entity types, which holds for typed API ecosystems but is less natural for imperative operations without typed outputs.
+The current graph models unary transformations and sequential workflows only; multi-input dependencies, branching, and parallel composition would require extensions.
+The composition graph must be constructed and maintained as tools evolve---Section~\ref{sec:production-eval} demonstrates automatic derivation from OpenAPI specifications, but generalization to arbitrary API surfaces remains open.
+The evaluation focuses on single-intent queries; compound requests would require an intent decomposition stage before graph search.
+
+\paragraph{Broader pattern.}
+
+The decomposition may instantiate a broader design pattern: mapping natural language to a structured intermediate representation that a deterministic solver can act upon, rather than asking an LLM to directly produce a final action sequence.
+This pattern appears in other domains---NL-to-SQL via query planners, task specifications to schedules via constraint solvers---but the choice of intermediate representation is domain-specific.
+The contribution here is identifying entity types as the appropriate representation for tool routing.
+This perspective explains why TCR generalizes across language models: only the semantic component depends on the LLM, while compositional reasoning is delegated to a domain-specific algorithm.
+
+\paragraph{Future work.}
+
+Promising directions include weighted graph search, automatic graph construction from diverse API formats, support for non-linear composition, and integration with learned retrieval.
+Because the decomposition cleanly separates type prediction from graph search, the semantic component is modular and independently improvable.

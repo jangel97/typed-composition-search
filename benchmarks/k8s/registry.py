@@ -53,6 +53,7 @@ def build_registry() -> Registry:
     reg.register("delete_service", ("Service",), ("DeletionResult",))
     reg.register("patch_service", ("Service",), ("Service",))
     reg.register("get_endpoints", ("Service",), ("Endpoints",))
+    reg.register("get_service_pods", ("Service",), ("PodList",))
 
     # --- Ingress ---
     reg.register("list_ingresses", ("Namespace",), ("IngressList",))
@@ -167,6 +168,7 @@ def build_registry() -> Registry:
     reg.register("list_routes", ("Namespace",), ("RouteList",))
     reg.register("get_route", ("RouteName",), ("Route",))
     reg.register("get_service_route", ("Service",), ("Route",))
+    reg.register("get_route_service", ("Route",), ("Service",))
 
     # --- OpenShift: BuildConfigs ---
     reg.register("list_buildconfigs", ("Namespace",), ("BuildConfigList",))

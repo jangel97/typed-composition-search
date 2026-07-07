@@ -99,3 +99,47 @@ class TestFindPath:
         assert result is not None
         assert result.tools == [multi]
         assert result.types == ["Deployment", "ReplicaSet"]
+
+
+class TestFindCandidateTools:
+    def test_single_edge(self):
+        g = Graph()
+        g.add_tool(make_tool("get_project", "Org", "Project"))
+
+        assert g.find_candidate_tools("Org", "Project") == {"get_project"}
+
+    def test_parallel_edges(self):
+        g = Graph()
+        g.add_tool(make_tool("list_projects", "Org", "Project"))
+        g.add_tool(make_tool("create_project", "Org", "Project"))
+
+        assert g.find_candidate_tools("Org", "Project") == {"list_projects", "create_project"}
+
+    def test_no_path(self):
+        g = Graph()
+        g.add_tool(make_tool("a_to_b", "A", "B"))
+
+        assert g.find_candidate_tools("A", "C") == set()
+
+    def test_same_source_target(self):
+        g = Graph()
+
+        assert g.find_candidate_tools("A", "A") == set()
+
+    def test_multihop_collects_all_tools(self):
+        g = Graph()
+        g.add_tool(make_tool("list_orgs", "Platform", "Org"))
+        g.add_tool(make_tool("create_org", "Platform", "Org"))
+        g.add_tool(make_tool("get_projects", "Org", "Project"))
+
+        candidates = g.find_candidate_tools("Platform", "Project")
+
+        assert candidates == {"list_orgs", "create_org", "get_projects"}
+
+    def test_only_shortest_path_tools(self):
+        g = Graph()
+        g.add_tool(make_tool("direct", "A", "C"))
+        g.add_tool(make_tool("step1", "A", "B"))
+        g.add_tool(make_tool("step2", "B", "C"))
+
+        assert g.find_candidate_tools("A", "C") == {"direct"}

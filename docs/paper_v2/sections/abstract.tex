@@ -1,0 +1,19 @@
+
+\begin{abstract}
+
+As LLM agents integrate with increasingly large tool ecosystems, tool routing---determining which tools to invoke for a user query---becomes a critical bottleneck.
+Existing approaches formulate routing as direct tool selection, requiring the model to simultaneously identify relevant tools, infer multi-step compositions, and ensure structural validity in a single unconstrained decision.
+As catalogs grow, this formulation leads to missed compositions, hallucinated invocations, and outputs whose validity cannot be verified without execution.
+
+We argue that this difficulty stems from conflating two distinct reasoning tasks that should be solved separately: \emph{semantic reasoning} (what domain entities does the user refer to?) and \emph{compositional reasoning} (what tool chain connects them?).
+We propose \textbf{Typed Composition Routing (TCR)}, a reformulation that decomposes these concerns.
+Tools are modeled as typed transformations between entity types, forming a directed composition graph.
+The LLM handles only semantic reasoning---predicting source and target entity types---while deterministic graph search handles compositional reasoning, recovering valid tool chains with structural validity guaranteed within the typed composition graph.
+
+Across four language models, five tool domains (54--170 tools), and 140 benchmark queries, this reformulation improves F1 in all 20 model--domain combinations (average $\Delta$F1 = +0.32) without training or fine-tuning.
+A production-scale evaluation on the Ansible Automation Platform MCP Server---a real-world system exposing 1,060 API operations across four enterprise services---confirms that the decomposition extends beyond benchmark-sized domains.
+The typed composition graph is derived automatically from OpenAPI specifications without manual curation.
+At this scale, TCR achieves F1 up to 0.91 while reducing prompt tokens by 94\%.
+An analytical recall decomposition separates end-to-end performance into entity type prediction accuracy and graph reachability, attributing routing failures to one component or the other.
+
+\end{abstract}

@@ -160,7 +160,7 @@ QUERIES = [
         "query": "Which collections provide the modules used in the network role?",
         "source_type": "Role",
         "target_type": "Collection",
-        "expected_tools": [],
+        "expected_tools": ["get_role_tasks", "select_task", "get_task_module", "get_module_collection"],
     },
 
     # ──────────────────────────────────────────────

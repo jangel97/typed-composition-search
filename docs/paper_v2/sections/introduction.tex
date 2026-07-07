@@ -1,0 +1,158 @@
+
+\section{Introduction}
+\label{sec:introduction}
+
+Large Language Model (LLM) agents increasingly rely on external tools to answer questions and perform real-world tasks \cite{yao2023react, shen2023hugginggpt}.
+As tool ecosystems grow from tens to hundreds or thousands of available APIs, a fundamental question arises: \emph{how should an agent determine which tools to invoke for a given query?}
+
+This problem---\emph{tool routing}---is typically formulated as direct tool selection: given a natural language query, the LLM selects one or more tools from the full catalog \cite{li2025toolscope, qin2024toolllm}.
+The formulation is natural and works for small catalogs.
+But it requires the model to solve a compound problem in a single step: identify which tools are relevant, infer a valid multi-step composition, and verify that the resulting sequence is executable.
+As catalogs grow, this compound problem becomes increasingly brittle.
+Context windows fill with tool descriptions, the combinatorial space of possible tool sequences explodes, and the model has no structural signal to distinguish valid compositions from invalid ones.
+The result is missed tool chains, hallucinated tool invocations, and outputs whose compositional validity cannot be verified without execution.
+
+We argue that these difficulties are not inherent to tool routing itself, but arise from formulating it at the wrong level of abstraction.
+Direct tool selection conflates two fundamentally different reasoning tasks:
+
+\begin{itemize}
+    \item \textbf{Semantic reasoning:} What domain entities does the user refer to?
+    \item \textbf{Compositional reasoning:} What sequence of typed transformations connects those entities?
+\end{itemize}
+
+These tasks have different structure and are best solved by different mechanisms.
+Semantic reasoning---mapping natural language to domain concepts---is a strength of language models.
+Compositional reasoning---ensuring that tool outputs are type-compatible with downstream inputs---is a structural constraint that can be solved exactly by graph algorithms.
+Treating both as a single unconstrained prediction forces the LLM to reason simultaneously about meaning and execution, without leveraging the structure that tool registries already provide.
+
+A key observation motivates the reformulation.
+User intent is expressed over domain objects, not tools.
+A query like ``Get the logs for pods in the production namespace'' refers to entity types (\texttt{Namespace}, \texttt{PodLogs}) without naming any tool.
+The tools that connect these entities (\texttt{list\_pods}, \texttt{get\_pod\_logs}) are implementation details that follow from the entity types involved.
+If the model can identify the correct entity types, the corresponding tool chain follows deterministically from the composition graph.
+
+This suggests a different formulation: \emph{Can tool routing be decomposed into semantic reasoning over entity types and compositional reasoning over a typed graph?}
+
+We propose \textbf{Typed Composition Routing (TCR)}, a reformulation that makes this decomposition explicit (Figure~\ref{fig:approach}).
+TCR rests on a core assumption: \emph{the tool ecosystem exposes an underlying typed transformation graph}, where each tool consumes an entity of one type and produces an entity of another (e.g., \texttt{get\_pod\_logs}: \texttt{Pod} $\rightarrow$ \texttt{PodLogs}).
+This assumption holds naturally for typed API ecosystems---cloud platforms, infrastructure automation, enterprise services, and any domain with structured request/response schemas---where the composition graph can often be derived automatically from existing specifications (e.g., OpenAPI).
+Domains without typed interfaces fall outside this formulation.
+
+Tools form a directed \emph{composition graph} through shared entity types.
+Given a query, the LLM predicts the source and target entity types---semantic reasoning.
+Graph search then deterministically recovers the tool chain---compositional reasoning.
+Where direct routing maps a query to a tool sequence ($q \rightarrow \{t_1, \ldots, t_k\}$), TCR factorizes this into type prediction ($q \rightarrow (e_{\mathrm{src}}, e_{\mathrm{tgt}})$) followed by graph path recovery ($(e_{\mathrm{src}}, e_{\mathrm{tgt}}) \rightarrow [t_1, \ldots, t_l]$).
+
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+    node distance=0.5cm,
+    box/.style={
+        rectangle,
+        draw,
+        rounded corners=2pt,
+        minimum width=2.8cm,
+        minimum height=0.6cm,
+        font=\small,
+        align=center
+    },
+    arrow/.style={-{Stealth[length=4pt]}, thick},
+    annot/.style={font=\footnotesize\itshape, text=gray!70!black}
+]
+
+% Traditional approach
+\node[font=\small\bfseries] (trad-title) {Direct Tool Selection};
+
+\node[box, below=0.4cm of trad-title, fill=blue!8] (query1) {Query};
+
+\node[
+    box,
+    below=0.5cm of query1,
+    fill=orange!10,
+    minimum width=3.2cm,
+    minimum height=1.0cm
+] (llm1) {LLM\\{\scriptsize Select tools from catalog}};
+
+\node[box, below=0.5cm of llm1, fill=red!8] (tools1) {Selected tools};
+
+\draw[arrow] (query1) -- (llm1);
+\draw[arrow] (llm1) -- (tools1);
+
+\node[annot, below=0.15cm of tools1]
+{no validity guarantee};
+
+% Divider
+\draw[dashed, gray!50, line width=0.5pt]
+(4.2,0.5) -- (4.2,-4.5);
+
+% Typed Composition Routing
+\node[
+    font=\small\bfseries,
+    right=5.5cm of trad-title
+] (our-title) {Typed Composition Routing};
+
+\node[box, below=0.4cm of our-title, fill=blue!8] (query2) {Query};
+
+\node[
+    box,
+    below=0.5cm of query2,
+    fill=green!10,
+    minimum width=3.5cm
+] (types)
+{
+Semantic reasoning (LLM)\\
+{\scriptsize Predict entity types}
+};
+
+\node[
+    box,
+    below=0.5cm of types,
+    fill=yellow!8,
+    minimum width=3.5cm
+] (graph)
+{
+Compositional reasoning (Graph)\\
+{\scriptsize Recover tool chain}
+};
+
+\node[
+    box,
+    below=0.5cm of graph,
+    fill=green!15
+] (tools2)
+{
+Valid tool chain
+};
+
+\draw[arrow] (query2) -- (types);
+\draw[arrow] (types) -- (graph);
+\draw[arrow] (graph) -- (tools2);
+
+\node[annot, below=0.15cm of tools2]
+{validity guaranteed within graph};
+
+\end{tikzpicture}
+
+\caption{
+\textbf{Left:} Direct tool selection requires the LLM to select and compose tools from the full catalog in a single unconstrained step.
+\textbf{Right:} Typed Composition Routing decomposes the problem: the LLM performs semantic reasoning (entity type prediction), while graph search performs compositional reasoning (tool chain recovery), guaranteeing structural validity within the typed composition graph.
+}
+
+\label{fig:approach}
+\end{figure*}
+
+This paper investigates whether this reformulation leads to more reliable and scalable tool routing.
+Our contributions are:
+
+\begin{enumerate}
+
+\item A \textbf{reformulation of tool routing} that decomposes it into semantic reasoning (entity type prediction) and compositional reasoning (deterministic graph search), replacing direct tool selection with a typed composition graph (Section~\ref{sec:method}).
+
+\item An \textbf{analytical recall decomposition} that separates end-to-end routing performance into entity type prediction accuracy and graph reachability, enabling failures to be attributed to either component (Section~\ref{sec:recall-decomp}).
+
+\item \textbf{Empirical validation} across four LLMs, five tool domains, and 140 benchmark queries, demonstrating consistent improvements over direct tool selection (average $\Delta$F1 = +0.32) with zero hallucinated tool invocations (Section~\ref{sec:results}).
+
+\item Evidence that the formulation \textbf{scales to production tool ecosystems}: evaluation on a production MCP server with 1,060 API operations, where the typed composition graph (79 entity types, 1,060 edges) is derived automatically from OpenAPI specifications without manual curation (Section~\ref{sec:production-eval}).
+
+\end{enumerate}
+

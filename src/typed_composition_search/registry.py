@@ -24,8 +24,15 @@ class Registry:
         self._graph.add_tool(tool)
         return tool
 
-    def resolve(self, source_type: str, target_type: str) -> Path | None:
+    def resolve(
+        self, source_type: str, target_type: str, all_shortest: bool = False,
+    ) -> Path | list[Path] | None:
+        if all_shortest:
+            return self._graph.find_all_shortest_paths(source_type, target_type)
         return self._graph.find_path(source_type, target_type)
+
+    def resolve_candidates(self, source_type: str, target_type: str) -> set[str]:
+        return self._graph.find_candidate_tools(source_type, target_type)
 
     def reachable_types(self, source_type: str) -> set[str]:
         return self._graph.reachable_types(source_type)

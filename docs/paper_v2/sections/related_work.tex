@@ -1,0 +1,68 @@
+
+\section{Related Work}
+\label{sec:related-work}
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{l c c c c}
+\toprule
+\textbf{Method} & \rotatebox{60}{\textbf{Predicts}} & \rotatebox{60}{\textbf{Graph}} & \rotatebox{60}{\textbf{Training}} & \rotatebox{60}{\textbf{Validity}} \\
+\midrule
+Direct selection       & Tools    & \texttimes & \texttimes & \texttimes \\
+Retrieval              & Tools    & \texttimes & \texttimes & \texttimes \\
+Graph-based planning   & Tools / Tasks & \checkmark & \checkmark & \checkmark \\
+Agent reasoning        & Tools    & \texttimes & \texttimes & \texttimes \\
+\midrule
+\textbf{TCR (ours)}    & Types    & \checkmark & \texttimes & \checkmark \\
+\bottomrule
+\end{tabular}
+\caption{Design space positioning. Existing approaches predict tools or tasks; TCR shifts the prediction target to entity types, providing compositional validity without task-specific training.}
+\label{tab:positioning}
+\end{table}
+
+\paragraph{Direct Tool Selection.}
+
+Most tool-routing systems formulate the problem as selecting tools directly from a catalog.
+ToolLLM~\cite{qin2024toolllm}, Gorilla~\cite{patil2024gorilla}, and Toolformer~\cite{schick2023toolformer} train or adapt LLMs to decide when and how to invoke APIs.
+ToolBench~\cite{xu2023toolbench} and API-Bank~\cite{li2023apibank} provide evaluation frameworks for tool manipulation.
+ToolScope~\cite{li2025toolscope} combines tool merging with hybrid retrieval to reduce confusion among semantically overlapping tools.
+TaskBench~\cite{shen2024taskbench} constructs a tool graph for benchmark generation, though the graph serves evaluation rather than runtime routing.
+ToolGen~\cite{wang2025toolgen} reformulates tool selection as token generation by mapping each tool to a virtual token in the LLM vocabulary, unifying retrieval and calling.
+AnyTool~\cite{du2024anytool} introduces hierarchical category-based retrieval, where a meta-agent routes queries through API category agents before selecting individual tools.
+Across these approaches, the final prediction target remains the tool itself---the LLM must jointly handle semantic understanding and compositional validity in the tool space.
+
+\paragraph{Graph-Constrained Planning.}
+
+Several works incorporate graph structure to improve tool composition.
+Among graph-based approaches, ControlLLM~\cite{zhang2024controlllm} is the closest related work in that it combines graph structure with type constraints during tool planning: a bipartite graph of resource types (\texttt{image}, \texttt{audio}, \texttt{text}, etc.) and tools is searched via DFS to find valid multimodal pipelines.
+However, it addresses a different problem: multimodal task planning rather than tool routing in typed API ecosystems.
+Consequently, the LLM and the graph play fundamentally different roles in the two systems.
+In ControlLLM, the LLM decomposes user requests into typed subtasks, scores candidate tools, and binds resources, while graph search validates connections between subtask solutions.
+In TCR, the LLM predicts source and target entity types, after which deterministic graph search recovers the complete tool chain.
+Graph search is no longer an aid to LLM-driven planning but the execution mechanism of a reformulated problem.
+PLaG~\cite{lin2024plag} serializes task graphs into prompts to guide asynchronous plan reasoning.
+ToolNet~\cite{liu2024toolnet} organizes tools in a weighted directed graph based on co-occurrence in tool-use trajectories, enabling LLMs to navigate by iteratively selecting successor tool nodes; edges reflect empirical transition frequencies rather than typed interface compatibility.
+Graph-native learning methods---GNN4Plan~\cite{wang2024gnn4plan}, GRAFT~\cite{li2025graft}, and GAP~\cite{li2025gap}---integrate graph neural networks with LLMs or learn graph-aware planning through supervised training, achieving strong performance but requiring task-specific training data.
+ToolFlow~\cite{wang2025toolflow} constructs parameter-level tool graphs based on input/output semantic similarity, though the graph is used for training data synthesis rather than runtime routing.
+These approaches demonstrate that graph structure improves compositional reasoning, but the LLM ultimately reasons about tools or task decompositions rather than predicting domain entity types as the routing target.
+
+\paragraph{Compositional Agents.}
+
+General-purpose agent frameworks such as HuggingGPT~\cite{shen2023hugginggpt}, Chameleon~\cite{lu2023chameleon}, and ReAct~\cite{yao2023react} rely on LLM reasoning to compose multi-step tool invocations.
+While highly flexible, these systems provide no structural guarantee that generated tool sequences are compositionally valid.
+
+\paragraph{The remaining gap.}
+
+Table~\ref{tab:positioning} summarizes the design space.
+A common thread runs through all three directions: the LLM's prediction target is the tool itself---or, in graph-learning approaches, a task decomposition that maps back to tools.
+AnyTool~\cite{du2024anytool} introduces organizational API categories as an intermediate routing step, and ToolFlow~\cite{wang2025toolflow} uses input/output type similarity for tool graph construction, but neither reformulates the prediction target: AnyTool's categories are organizational (derived from API marketplace taxonomy), and ToolFlow's type graph is used for data synthesis, not runtime routing.
+
+In short, existing work improves tool routing \emph{within} the tool-selection formulation.
+Our work questions the formulation itself.
+We argue that a key modeling challenge lies not in graph search itself, but in the prediction target.
+Tool registries already encode typed input/output signatures that induce a composition graph over entity types.
+By decomposing routing into semantic reasoning (entity type prediction) and compositional reasoning (graph search), the LLM's role shifts from tool selection to semantic reasoning through entity type prediction, while graph algorithms handle composition deterministically---without training, graph serialization, or planning architectures.
+Existing work asks the LLM to decide which tools to use.
+We instead ask the LLM which entities the user is referring to, and delegate tool composition to deterministic graph search.
+This is the decomposition we formalize in Section~\ref{sec:method}.

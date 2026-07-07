@@ -1,0 +1,113 @@
+\documentclass[11pt]{article}
+
+% =============================================================================
+% ACL
+% =============================================================================
+
+\usepackage[preprint]{acl}
+
+% =============================================================================
+% Fonts & Encoding
+% =============================================================================
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage{microtype}
+\usepackage{inconsolata}
+
+% =============================================================================
+% Mathematics
+% =============================================================================
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% =============================================================================
+% Figures & Tables
+% =============================================================================
+
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+% =============================================================================
+% TikZ
+% =============================================================================
+
+\usepackage{tikz}
+\usetikzlibrary{
+    arrows.meta,
+    positioning,
+    shapes.geometric,
+    fit,
+    calc
+}
+
+% =============================================================================
+% Colors
+% =============================================================================
+
+\usepackage{xcolor}
+
+\definecolor{srccolor}{HTML}{4CAF50}
+\definecolor{tgtcolor}{HTML}{2196F3}
+\definecolor{toolcolor}{HTML}{FF9800}
+\definecolor{graphbg}{HTML}{F5F5F5}
+
+% =============================================================================
+% References & URLs
+% =============================================================================
+
+\usepackage{hyperref}
+\usepackage{xurl}
+\usepackage{cleveref}
+
+% =============================================================================
+% Title
+% =============================================================================
+
+\title{
+Typed Composition Routing:
+Decomposing Semantic and Compositional Reasoning for Tool Routing
+}
+
+\author{
+Jose Angel Morena\\
+Red Hat\\
+\texttt{jmorenas@redhat.com}
+}
+
+\begin{document}
+
+\maketitle
+
+% =============================================================================
+% Paper
+% =============================================================================
+
+\input{sections/abstract}
+
+\input{sections/introduction}
+
+\input{sections/related_work}
+
+\input{sections/method}
+
+\input{sections/experimental_setup}
+
+\input{sections/results}
+
+\input{sections/discussion}
+
+\input{sections/conclusion}
+
+% =============================================================================
+% Bibliography
+% =============================================================================
+
+\bibliography{references}
+
+\end{document}

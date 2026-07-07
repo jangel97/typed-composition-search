@@ -3,65 +3,47 @@ import importlib
 import time
 from pathlib import Path
 
-from sentence_transformers import SentenceTransformer
-from sentence_transformers.util import cos_sim
+import torch
 
+def load_model(model_dir: Path):
+    """Load encoder + predictor from a saved checkpoint (domain-generic)."""
+    import torch as _torch
+    from sentence_transformers import SentenceTransformer
+    from benchmarks.aap_mcp.train_type_heads import TypePredictor
+
+    ckpt = _torch.load(model_dir / "heads.pt", weights_only=True)
+    encoder = SentenceTransformer(ckpt["base_model"])
+    predictor = TypePredictor(ckpt["embedding_dim"], len(ckpt["source_types"]))
+    predictor.load_state_dict(ckpt["model"])
+    predictor.eval()
+    return encoder, predictor, ckpt["source_types"], ckpt["target_types"]
 from benchmarks.metrics import avg, format_metric, format_pruning, format_tools
 from benchmarks.parallel import run_queries_parallel
 from benchmarks.report import BenchmarkReport, query_graph_metrics
 
 
-DEFAULT_MODEL_PATH = str(
-    Path(__file__).parent / "aap_mcp" / "encoder_model"
-)
+DEFAULT_MODEL_DIR = Path(__file__).parent / "aap_mcp" / "encoder_model"
 
 
-def build_pair_text(source: str, target: str, entity_types: dict) -> str:
-    src_desc = entity_types.get(source, "")
-    tgt_desc = entity_types.get(target, "")
-    return f"Source: {source} — {src_desc}. Target: {target} — {tgt_desc}."
-
-
-def compute_reachable_pairs(registry, entity_types):
-    pairs = set()
-    type_names = sorted(entity_types.keys())
-    for src in type_names:
-        for tgt in type_names:
-            if registry.resolve(src, tgt) is not None:
-                pairs.add((src, tgt))
-    return pairs
-
-
-def run_benchmark_encoder(model_path: str, domain: str):
+def run_benchmark_encoder(model_dir: str, domain: str):
     reg_mod = importlib.import_module(f"benchmarks.{domain}.registry")
     queries_mod = importlib.import_module(f"benchmarks.{domain}.queries")
     build_registry = reg_mod.build_registry
-    entity_types = reg_mod.ENTITY_TYPES
     queries = queries_mod.QUERIES
 
     registry = build_registry()
     total_tools = len(registry._tools)
 
-    model = SentenceTransformer(model_path)
+    encoder, predictor, source_types, target_types = load_model(Path(model_dir))
 
-    print("Computing reachable type pairs...", end=" ", flush=True)
-    valid_pairs = compute_reachable_pairs(registry, entity_types)
-    pair_labels = sorted(valid_pairs)
-    pair_texts = [build_pair_text(s, t, entity_types) for s, t in pair_labels]
-    print(f"{len(pair_labels)} pairs")
-
-    print("Encoding pair texts...", end=" ", flush=True)
-    pair_embeddings = model.encode(pair_texts, convert_to_tensor=True, show_progress_bar=False)
-    print("done")
-
-    print(f"\n=== Encoder: {Path(model_path).name} ===")
-    print(f"Reachable type pairs: {len(pair_labels)}")
+    print(f"\n=== Encoder (linear heads) ===")
+    print(f"Source classes: {len(source_types)}, Target classes: {len(target_types)}")
     print(f"Total tools in registry: {total_tools}\n")
 
     header = (
         f"{'Query':<30} {'Category':<12} {'Prompt':<85} "
-        f"{'Expected S→T':<25} {'Predicted S→T':<25} "
-        f"{'Sim':>5} {'Path':>4} {'Tools':>5} {'Prune':>6} {'Prec':>5} {'Rec':>5} {'F1':>5} {'ms':>6}"
+        f"{'Expected S->T':<25} {'Predicted S->T':<25} "
+        f"{'Path':>4} {'Tools':>5} {'Prune':>6} {'Prec':>5} {'Rec':>5} {'F1':>5} {'ms':>6}"
     )
     print(header)
     print("─" * len(header))
@@ -75,22 +57,23 @@ def run_benchmark_encoder(model_path: str, domain: str):
     type_exact = 0
     path_found_count = 0
 
+    @torch.no_grad()
     def process_query(q):
         start = time.monotonic()
-        query_emb = model.encode([q["query"]], convert_to_tensor=True, show_progress_bar=False)
-        similarities = cos_sim(query_emb, pair_embeddings)[0]
-        best_idx = similarities.argmax().item()
-        best_sim = similarities[best_idx].item()
+        emb = encoder.encode(
+            [q["query"]], convert_to_tensor=True, show_progress_bar=False,
+        )
+        src_logits, tgt_logits = predictor(emb)
+        pred_source = source_types[src_logits.argmax(dim=1).item()]
+        pred_target = target_types[tgt_logits.argmax(dim=1).item()]
         latency_ms = (time.monotonic() - start) * 1000
 
-        pred_source, pred_target = pair_labels[best_idx]
         path = registry.resolve(pred_source, pred_target)
         return {
             "q": q,
             "pred_source": pred_source,
             "pred_target": pred_target,
             "path": path,
-            "similarity": best_sim,
             "latency_ms": latency_ms,
         }
 
@@ -100,14 +83,13 @@ def run_benchmark_encoder(model_path: str, domain: str):
         q = r["q"]
         pred_source, pred_target = r["pred_source"], r["pred_target"]
         path, latency_ms = r["path"], r["latency_ms"]
-        similarity = r["similarity"]
         report.record_latency(latency_ms, 0, 0)
 
         cat = q.get("category", "clean")
         stats = report.category_stats[cat]
 
-        expected_st = f"{q['source_type']}→{q['target_type']}"
-        predicted_st = f"{pred_source}→{pred_target}"
+        expected_st = f"{q['source_type']}->{q['target_type']}"
+        predicted_st = f"{pred_source}->{pred_target}"
 
         src_ok = pred_source == q["source_type"]
         tgt_ok = pred_target == q["target_type"]
@@ -144,7 +126,7 @@ def run_benchmark_encoder(model_path: str, domain: str):
         print(
             f"{q['id']:<30} {cat:<12} {prompt:<85} "
             f"{expected_st:<25} {predicted_st:<25} "
-            f"{similarity:>5.2f} {path_mark:>4} {format_tools(n_tools)} {format_pruning(n_tools, total_tools)} "
+            f"{path_mark:>4} {format_tools(n_tools)} {format_pruning(n_tools, total_tools)} "
             f"{format_metric(precision)} {format_metric(recall)} {format_metric(f1)} {latency_ms:>6.0f}"
         )
 
@@ -169,7 +151,7 @@ def run_benchmark_encoder(model_path: str, domain: str):
         s = report.category_stats[cat]
         n_cat = s["total"]
         f1_avg = avg(s["f1_vals"]) if s["f1_vals"] else -1
-        f1_str = f"f1={f1_avg:.2f}" if f1_avg >= 0 else "f1=—"
+        f1_str = f"f1={f1_avg:.2f}" if f1_avg >= 0 else "f1=---"
         print(f"  {cat:<12} path={s['path_found']}/{n_cat}  type_exact={s['type_exact']}/{n_cat}  {f1_str}")
 
     return {
@@ -181,13 +163,13 @@ def run_benchmark_encoder(model_path: str, domain: str):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", default=DEFAULT_MODEL_PATH,
-                        help="Path to finetuned encoder (from finetune_encoder.py)")
+    parser.add_argument("--model-dir", default=str(DEFAULT_MODEL_DIR),
+                        help="Directory with heads.pt (from type_heads)")
     parser.add_argument("--domain", default="aap_mcp",
                         help="Tool domain to benchmark (default: aap_mcp)")
     args = parser.parse_args()
 
-    run_benchmark_encoder(args.model_path, args.domain)
+    run_benchmark_encoder(args.model_dir, args.domain)
 
 
 if __name__ == "__main__":

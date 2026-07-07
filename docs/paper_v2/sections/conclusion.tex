@@ -1,0 +1,19 @@
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+The standard formulation of tool routing asks the model to predict tools.
+Our results suggest this is the wrong prediction target.
+When the model predicts entity types instead and graph search handles composition, routing becomes simpler, more reliable, and more scalable---consistently outperforming direct tool selection across four language models, five benchmark domains, and a production MCP server with over one thousand tools.
+The decomposition eliminates hallucinated tool invocations by construction, and the recall decomposition reveals that end-to-end performance separates cleanly into entity type prediction quality and graph reachability---two independent and actionable levers for improvement.
+
+The decomposition is the primary contributor to performance gains, not the choice of predictor.
+TCR improves every model--domain combination we tested.
+A compact domain-specific classifier ($\sim$475K trainable parameters) matches Gemini 2.5 Pro with few-shot prompting on two production-scale APIs spanning 536 to 1,060 tools, confirming that the semantic component can be served by lightweight, domain-specific models rather than general-purpose frontier models.
+
+TCR assumes that the tool ecosystem exposes an underlying typed transformation graph.
+Where this assumption holds---typed API ecosystems, infrastructure automation, enterprise services---the decomposition provides structural guarantees that no amount of model scaling can replicate.
+Where it does not, the method does not apply.
+Identifying the boundary between these regimes, and extending the formulation to domains with weaker type structure, remains an open direction.
+
+More broadly, improving tool routing may require changing the prediction target---from tools to the domain abstractions that organize them---rather than building increasingly capable tool-selecting language models.

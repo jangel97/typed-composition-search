@@ -32,8 +32,8 @@ class Graph:
 
         while queue:
             current, types, tools = queue.popleft()
-            for tool in self._edges.get(current, []):
-                for next_type in tool.output_types:
+            for tool in sorted(self._edges.get(current, []), key=lambda t: t.name):
+                for next_type in sorted(tool.output_types):
                     if next_type in visited:
                         continue
                     new_types = types + [next_type]
@@ -45,13 +45,52 @@ class Graph:
 
         return None
 
+    def find_candidate_tools(self, source: str, target: str) -> set[str]:
+        paths = self.find_all_shortest_paths(source, target)
+        return {tool.name for path in paths for tool in path.tools}
+
+    def find_all_shortest_paths(self, source: str, target: str) -> list[Path]:
+        if source == target:
+            return [Path(types=[source], tools=[])]
+
+        distances: dict[str, int] = {source: 0}
+        paths_to: dict[str, list[tuple[list[str], list[Tool]]]] = {
+            source: [([source], [])],
+        }
+        queue: deque[tuple[str, int]] = deque([(source, 0)])
+        target_depth: int | None = None
+
+        while queue:
+            current, dist = queue.popleft()
+            if target_depth is not None and dist >= target_depth:
+                continue
+            for tool in sorted(self._edges.get(current, []), key=lambda t: t.name):
+                for next_type in sorted(tool.output_types):
+                    new_dist = dist + 1
+                    if next_type not in distances:
+                        distances[next_type] = new_dist
+                        paths_to[next_type] = []
+                        if next_type == target:
+                            target_depth = new_dist
+                        else:
+                            queue.append((next_type, new_dist))
+                    if distances[next_type] == new_dist:
+                        for types_so_far, tools_so_far in paths_to[current]:
+                            paths_to[next_type].append(
+                                (types_so_far + [next_type], tools_so_far + [tool])
+                            )
+
+        if target not in paths_to:
+            return []
+        return [Path(types=t, tools=tl) for t, tl in paths_to[target]]
+
     def reachable_types(self, source: str) -> set[str]:
         visited: set[str] = {source}
         queue: deque[str] = deque([source])
         while queue:
             current = queue.popleft()
-            for tool in self._edges.get(current, []):
-                for next_type in tool.output_types:
+            for tool in sorted(self._edges.get(current, []), key=lambda t: t.name):
+                for next_type in sorted(tool.output_types):
                     if next_type not in visited:
                         visited.add(next_type)
                         queue.append(next_type)
@@ -63,8 +102,8 @@ class Graph:
         queue: deque[str] = deque([target])
         while queue:
             current = queue.popleft()
-            for tool in self._reverse_edges.get(current, []):
-                for input_type in tool.input_types:
+            for tool in sorted(self._reverse_edges.get(current, []), key=lambda t: t.name):
+                for input_type in sorted(tool.input_types):
                     if input_type not in visited:
                         visited.add(input_type)
                         queue.append(input_type)
@@ -103,8 +142,8 @@ class Graph:
         queue: deque[tuple[str, int]] = deque([(source, 0)])
         while queue:
             current, dist = queue.popleft()
-            for tool in self._edges.get(current, []):
-                for next_type in tool.output_types:
+            for tool in sorted(self._edges.get(current, []), key=lambda t: t.name):
+                for next_type in sorted(tool.output_types):
                     if next_type in visited:
                         continue
                     if next_type == target:
@@ -173,8 +212,8 @@ class Graph:
             while queue_bfs:
                 current, dist = queue_bfs.popleft()
                 order.append(current)
-                for tool in self._edges.get(current, []):
-                    for next_type in tool.output_types:
+                for tool in sorted(self._edges.get(current, []), key=lambda t: t.name):
+                    for next_type in sorted(tool.output_types):
                         if next_type not in visited_bfs:
                             visited_bfs.add(next_type)
                             distances[next_type] = dist + 1
