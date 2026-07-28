@@ -20,7 +20,7 @@ GitHub & 133 & 44 & 33\% & 56\% \\
 CI/CD & 54 & 51 & 94\% & 87\% \\
 Shopify & 170 & 61 & 35\% & 78\% \\
 \midrule
-AAP MCP & 1,060 & 79 & 7\% & -- \\
+AAP MCP & 1,060 & 50 & 5\% & -- \\
 \bottomrule
 \end{tabular}
 \caption{Domain statistics. T/T\% = types-to-tools ratio. Pruning = average entity pruning. CI/CD has near-parity types/tools (94\%) yet achieves the highest pruning (87\%), demonstrating that TCR derives advantage from graph topology rather than label-space reduction. AAP MCP is evaluated separately in Section~\ref{sec:production-eval}.}
@@ -28,7 +28,7 @@ AAP MCP & 1,060 & 79 & 7\% & -- \\
 \end{table}
 
 Benchmark registries are constructed from API documentation; Shopify (Admin REST API) serves as a non-infrastructure domain.
-The \textbf{AAP MCP} domain is the official Ansible Automation Platform MCP Server\footnote{\url{https://github.com/ansible/aap-mcp-server}} (1,060 operations across four services), with its composition graph derived automatically from OpenAPI specifications.
+The \textbf{AAP MCP} domain is the official Ansible Automation Platform MCP Server\footnote{\url{https://github.com/ansible/aap-mcp-server}} (1,060 operations across four services), with its composition graph (50 entity types) derived automatically from OpenAPI specifications.
 
 \subsection{Models}
 \label{sec:models}
@@ -44,7 +44,7 @@ Since TCR requires only entity type prediction, the approach is applicable to an
 \subsection{Benchmark Queries}
 \label{sec:queries}
 
-The benchmark contains 140 manually authored queries for the five benchmark domains (25--30 per domain) and 47 queries for the AAP domain.
+The benchmark contains 140 manually authored queries for the five benchmark domains (25--30 per domain) and 120 queries for the AAP domain.
 Each query is annotated with ground-truth source and target entity types and the expected tool sequence.
 Queries span six categories: \textbf{clean} (explicit requests), \textbf{multi-hop} (3+ tool compositions), \textbf{noisy} (distracting information), \textbf{synonym} (alternative terminology), \textbf{ambiguous} (multiple valid interpretations), and \textbf{multi-path} (multiple valid compositions).
 All annotations were finalized before model evaluation began.
@@ -59,6 +59,7 @@ We compare TCR against representative baselines:
     \item \textbf{Function Calling}: tools presented as OpenAI-compatible function schemas via the \texttt{tools} API parameter.
     \item \textbf{Retrieval}: top-10 tools by embedding similarity (nomic-embed-text-v1.5) presented for selection.
     \item \textbf{TCR} (ours): entity type prediction followed by graph search.
+    \item \textbf{TCR + Trained Encoder}: a lightweight domain-specific classifier (frozen sentence encoder + dual classification heads, 475K parameters) replaces the LLM for entity type prediction. Evaluated on the AAP domain (Section~\ref{sec:production-eval}).
     \item \textbf{Oracle}: graph search with ground-truth entity types (upper bound).
 \end{itemize}
 

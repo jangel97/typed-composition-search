@@ -155,47 +155,69 @@ Clean queries achieve 81\% exact match; ambiguous queries are hardest (25\%), si
 Since the recall decomposition confirms that routing performance tracks type prediction quality, improving entity type prediction is the primary lever for improving end-to-end performance.
 
 
-\subsection{Scaling to Production Tool Ecosystems}
+\subsection{Production-Scale Evaluation with Trained Encoder}
 \label{sec:production-eval}
 
-The preceding results validate the decomposition on benchmark domains with 54--170 tools.
-A natural question is whether the formulation remains effective at significantly larger scale, and whether the composition graph can be constructed automatically rather than by hand.
-We test both by evaluating on the official Ansible Automation Platform MCP Server, a production system with 1,060 tool operations and 79 entity types derived automatically from OpenAPI specifications.
-At this scale, the 1,060 tool schemas require $\sim$64,000 tokens---exceeding the entire 32K context window of models like Qwen3-14B, making function calling physically impossible without truncation.
-Even for models with larger context windows, the text baseline consumes $\sim$18,000 prompt tokens per query.
-Under the decomposed formulation, the LLM reasons over 79 entity type names rather than 1,060 tool definitions, reducing prompt tokens to $\sim$300 (99.5\% reduction).
+The preceding results validate the decomposition on benchmark domains with 54--170 tools using LLM-based entity type prediction.
+Two questions remain: (1)~does the formulation scale to significantly larger tool registries, and (2)~can a lightweight trained classifier replace the LLM for type prediction?
+We address both on the official Ansible Automation Platform (AAP) MCP Server, a production system with 1,060 tool operations and 50 entity types derived automatically from OpenAPI specifications.
+
+At this scale, presenting all tool schemas to the LLM requires ${\sim}$25,000 prompt tokens per query.
+TCR reduces this to ${\sim}$66 tokens (the 50 entity type names), a 99.7\% reduction.
+We compare three strategies on 120 queries spanning all six categories (Table~\ref{tab:aap-encoder}):
+(1)~direct selection, where the LLM chooses from all 1,060 tools;
+(2)~TCR with an LLM predictor, where the same model predicts entity types;
+and (3)~TCR with a trained encoder, a frozen sentence encoder (all-mpnet-base-v2, 768-dim) plus a dual-head MLP classifier (475K trainable parameters) trained on ${\sim}$10,000 synthetic examples.
 
 \begin{table}[t]
 \centering
 \small
-\begin{tabular}{l c c c c}
+\begin{tabular}{l cccc}
 \toprule
-\textbf{Model} & \textbf{Strategy} & \textbf{F1} & \textbf{Prec.} & \textbf{Rec.} \\
+\textbf{Strategy} & \textbf{Recall} & \textbf{Tokens} & \textbf{Halluc.} & \textbf{Latency} \\
 \midrule
-\multirow{2}{*}{Granite 8B}
-    & Baseline & 0.61 & 0.58 & 0.69 \\
-    & TCR      & \textbf{0.74} & \textbf{0.74} & \textbf{0.73} \\
-\midrule
-\multirow{2}{*}{Qwen3-14B}
-    & Baseline & 0.66 & 0.63 & 0.73 \\
-    & TCR      & \textbf{0.80} & \textbf{0.81} & \textbf{0.80} \\
-\midrule
-\multirow{2}{*}{Haiku 4.5}
-    & Baseline & 0.58 & 0.50 & 0.74 \\
-    & TCR      & \textbf{0.91} & \textbf{0.91} & \textbf{0.91} \\
+Direct selection       & 0.58         & 25,433         & 10 & ---           \\
+TCR + LLM pred.        & 0.42         & 66             & 0  & 6,579\,ms    \\
+TCR + Encoder          & \textbf{0.96} & \textbf{66}   & \textbf{0} & \textbf{6.8\,ms} \\
 \bottomrule
 \end{tabular}
-\caption{Results on the AAP MCP Server (1,060 tools, 79 entity types, 47 queries). TCR improves F1 for all models with zero hallucinations. The oracle achieves F1 = 1.000, confirming complete graph coverage. When entity types are correct, $R_c$ = 1.000 for all three models.}
-\label{tab:aap-results}
+\caption{Production-scale evaluation on the AAP MCP Server (1,060 tools, 50 entity types, 120 queries). Recall measures coverage of expected tools: for direct selection, among tools chosen by the LLM; for TCR, among candidates returned by graph search. The trained encoder (475K parameters) achieves 96.3\% candidate recall with 6.8\,ms prediction latency and zero hallucinations. All LLM calls use Granite 4.1 8B.}
+\label{tab:aap-encoder}
 \end{table}
 
-Table~\ref{tab:aap-results} presents results on 47 operator workflow queries.
-TCR improves F1 for all three models ($\Delta$F1: +0.13 to +0.33) with zero hallucinated tool invocations.
-The oracle achieves F1 = 1.000, confirming complete graph coverage.
-The recall decomposition fits exactly: when entity types are correct, $R_c$ = 1.000 for all three models.
+Direct selection with Granite 4.1 8B achieves 0.59~F1 (precision~0.63, recall~0.58) while producing 10 hallucinated tool invocations across 120 queries.
+The LLM-based type predictor, using the same model, achieves only 40\% exact type match (57\% source, 66\% target) and 0.42 candidate recall---worse than direct selection despite 99.7\% fewer prompt tokens.
+This confirms that entity type prediction over a production-scale type system is a non-trivial classification task where general-purpose LLMs struggle.
 
-Type prediction accuracy ranges from 72\% (Granite 8B) to 91\% (Haiku 4.5) exact match over 79 automatically derived types, comparable to or exceeding the five benchmark domains.
-A notable model ranking inversion occurs: under the baseline, Qwen3-14B achieves the highest F1 (0.66) and Haiku the lowest (0.58); under TCR, this reverses (Haiku 0.91, Granite 0.74).
-The two formulations reward different capabilities---direct selection rewards scanning long tool lists, while the decomposition rewards semantic understanding of domain entities.
+The trained encoder reverses this: with 475K parameters it achieves 88\% exact type match (90\% source, 97\% target), 96.3\% candidate recall, and 6.8\,ms prediction latency---three orders of magnitude faster than the LLM predictor.
+The average candidate set contains 6.1 tools (99.4\% search reduction from 1,060), providing a compact but high-coverage input for downstream LLM selection.
 
-These results confirm that the decomposition scales beyond benchmark-sized domains: at 1,060 tools, separating semantic reasoning from compositional reasoning remains effective, and the composition graph can be derived automatically from existing API specifications.
+In a full deployment, TCR requires a second LLM call to select from the candidate set.
+However, this call receives only the ${\sim}$6 candidate tool descriptions (${\sim}$100 tokens) rather than all 1,060 (${\sim}$16,000 tokens).
+With an LLM-based type predictor, the two calls total ${\sim}$166 input tokens (66 for type names + 100 for candidates)---a 99.3\% reduction from the ${\sim}$25,000 tokens required by direct selection.
+With the encoder, type prediction is local, so the pipeline reduces to a single LLM call at ${\sim}$100 tokens: fewer API calls \emph{and} fewer tokens than direct selection.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{l r cc cc}
+\toprule
+& & \multicolumn{2}{c}{\textbf{TCR (Encoder)}} & \multicolumn{2}{c}{\textbf{TCR (LLM)}} \\
+\cmidrule(lr){3-4} \cmidrule(lr){5-6}
+\textbf{Category} & \textbf{N} & \textbf{Recall} & \textbf{Cand.} & \textbf{Recall} & \textbf{Cand.} \\
+\midrule
+Clean      & 35 & 1.000 & 4.8 & 0.49 & 4.1 \\
+Synonym    & 20 & 0.900 & 5.6 & 0.15 & 4.0 \\
+Multi-hop  & 20 & 0.975 & 5.9 & 0.70 & 4.8 \\
+Ambiguous  & 15 & 0.933 & 8.6 & 0.13 & 2.7 \\
+Noisy      & 15 & 1.000 & 5.6 & 0.53 & 2.8 \\
+Multi-path & 15 & 0.933 & 8.5 & 0.40 & 4.6 \\
+\bottomrule
+\end{tabular}
+\caption{Per-category candidate recall on the AAP MCP Server. The trained encoder achieves near-perfect recall on clean and noisy queries, with multi-hop routing handled entirely by graph search after the encoder predicts start and end types.}
+\label{tab:aap-category}
+\end{table}
+
+Table~\ref{tab:aap-category} breaks down performance by query category.
+The encoder achieves perfect recall on clean and noisy queries and 97.5\% on multi-hop---notably, the encoder only predicts start and end types while the graph handles intermediate path discovery, so multi-hop routing requires no explicit multi-step training.
+These results confirm that TCR scales to production registries with 1,000+ operations and that a trained encoder ($<$500K parameters) can replace the LLM for type prediction, yielding a routing layer where the LLM is only needed for final selection among a small candidate set.

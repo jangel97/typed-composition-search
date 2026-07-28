@@ -8,12 +8,13 @@ As catalogs grow, this formulation leads to missed compositions, hallucinated in
 We argue that this difficulty stems from conflating two distinct reasoning tasks that should be solved separately: \emph{semantic reasoning} (what domain entities does the user refer to?) and \emph{compositional reasoning} (what tool chain connects them?).
 We propose \textbf{Typed Composition Routing (TCR)}, a reformulation that decomposes these concerns.
 Tools are modeled as typed transformations between entity types, forming a directed composition graph.
-The LLM handles only semantic reasoning---predicting source and target entity types---while deterministic graph search handles compositional reasoning, recovering valid tool chains with structural validity guaranteed within the typed composition graph.
+The LLM handles only semantic reasoning---predicting source and target entity types---while deterministic graph search generates the set of structurally valid tool chains connecting those types.
+For most queries, this candidate set contains exactly one chain and routing is fully resolved; when multiple valid chains exist, intent-level selection among a small set of guaranteed-valid candidates becomes a separable downstream concern.
 
 Across four language models, five tool domains (54--170 tools), and 140 benchmark queries, this reformulation improves F1 in all 20 model--domain combinations (average $\Delta$F1 = +0.32) without training or fine-tuning.
 A production-scale evaluation on the Ansible Automation Platform MCP Server---a real-world system exposing 1,060 API operations across four enterprise services---confirms that the decomposition extends beyond benchmark-sized domains.
 The typed composition graph is derived automatically from OpenAPI specifications without manual curation.
-At this scale, TCR achieves F1 up to 0.91 while reducing prompt tokens by 94\%.
+At this scale, a trained encoder ($<$500K parameters) replaces the LLM for type prediction, achieving 96\% candidate recall while reducing prompt tokens by 99.7\%.
 An analytical recall decomposition separates end-to-end performance into entity type prediction accuracy and graph reachability, attributing routing failures to one component or the other.
 
 \end{abstract}

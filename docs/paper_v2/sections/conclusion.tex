@@ -9,7 +9,8 @@ The decomposition eliminates hallucinated tool invocations by construction, and 
 
 The decomposition is the primary contributor to performance gains, not the choice of predictor.
 TCR improves every model--domain combination we tested.
-A compact domain-specific classifier ($\sim$475K trainable parameters) matches Gemini 2.5 Pro with few-shot prompting on two production-scale APIs spanning 536 to 1,060 tools, confirming that the semantic component can be served by lightweight, domain-specific models rather than general-purpose frontier models.
+A compact domain-specific classifier ($\sim$475K trainable parameters) achieves 96.3\% candidate recall on a 1,060-tool production registry, matching or exceeding Gemini 2.5 Pro with few-shot prompting, confirming that the semantic component can be served by lightweight, domain-specific models rather than general-purpose frontier models.
+The efficiency gains compound: with the encoder, the full pipeline requires a single LLM call over ${\sim}$100 candidate tokens instead of ${\sim}$25,000 tool-schema tokens---fewer tokens means lower inference cost, and selecting among ${\sim}$6 closely related tools rather than 1,060 is a simple enough task that a smaller, cheaper model can handle the final selection.
 
 TCR assumes that the tool ecosystem exposes an underlying typed transformation graph.
 Where this assumption holds---typed API ecosystems, infrastructure automation, enterprise services---the decomposition provides structural guarantees that no amount of model scaling can replicate.

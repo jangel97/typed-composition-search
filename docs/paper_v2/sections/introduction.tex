@@ -40,8 +40,9 @@ Domains without typed interfaces fall outside this formulation.
 
 Tools form a directed \emph{composition graph} through shared entity types.
 Given a query, the LLM predicts the source and target entity types---semantic reasoning.
-Graph search then deterministically recovers the tool chain---compositional reasoning.
-Where direct routing maps a query to a tool sequence ($q \rightarrow \{t_1, \ldots, t_k\}$), TCR factorizes this into type prediction ($q \rightarrow (e_{\mathrm{src}}, e_{\mathrm{tgt}})$) followed by graph path recovery ($(e_{\mathrm{src}}, e_{\mathrm{tgt}}) \rightarrow [t_1, \ldots, t_l]$).
+Graph search then generates the set of structurally valid tool chains connecting those types---compositional reasoning.
+For most queries, this produces exactly one chain; when multiple valid chains exist (e.g., \texttt{list\_projects} vs.\ \texttt{create\_project} for the same entity pair), intent-level selection among guaranteed-valid candidates is a separable concern.
+Where direct routing maps a query to a tool sequence ($q \rightarrow \{t_1, \ldots, t_k\}$), TCR factorizes this into type prediction ($q \rightarrow (e_{\mathrm{src}}, e_{\mathrm{tgt}})$) followed by candidate generation ($(e_{\mathrm{src}}, e_{\mathrm{tgt}}) \rightarrow \{[t_1, \ldots, t_l]\}$).
 
 \begin{figure*}[t]
 \centering
@@ -112,7 +113,7 @@ Semantic reasoning (LLM)\\
 ] (graph)
 {
 Compositional reasoning (Graph)\\
-{\scriptsize Recover tool chain}
+{\scriptsize Generate valid candidates}
 };
 
 \node[
@@ -121,7 +122,7 @@ Compositional reasoning (Graph)\\
     fill=green!15
 ] (tools2)
 {
-Valid tool chain
+Valid candidates
 };
 
 \draw[arrow] (query2) -- (types);
@@ -135,7 +136,8 @@ Valid tool chain
 
 \caption{
 \textbf{Left:} Direct tool selection requires the LLM to select and compose tools from the full catalog in a single unconstrained step.
-\textbf{Right:} Typed Composition Routing decomposes the problem: the LLM performs semantic reasoning (entity type prediction), while graph search performs compositional reasoning (tool chain recovery), guaranteeing structural validity within the typed composition graph.
+\textbf{Right:} Typed Composition Routing decomposes the problem: the LLM performs semantic reasoning (entity type prediction), while graph search generates the set of structurally valid tool chains connecting the predicted types.
+For most queries, this set contains exactly one chain.
 }
 
 \label{fig:approach}
@@ -146,13 +148,13 @@ Our contributions are:
 
 \begin{enumerate}
 
-\item A \textbf{reformulation of tool routing} that decomposes it into semantic reasoning (entity type prediction) and compositional reasoning (deterministic graph search), replacing direct tool selection with a typed composition graph (Section~\ref{sec:method}).
+\item A \textbf{reformulation of tool routing} that decomposes it into semantic reasoning (entity type prediction) and structural candidate generation (graph search over a typed composition graph), reducing the LLM's role from tool selection to entity type classification (Section~\ref{sec:method}).
 
 \item An \textbf{analytical recall decomposition} that separates end-to-end routing performance into entity type prediction accuracy and graph reachability, enabling failures to be attributed to either component (Section~\ref{sec:recall-decomp}).
 
 \item \textbf{Empirical validation} across four LLMs, five tool domains, and 140 benchmark queries, demonstrating consistent improvements over direct tool selection (average $\Delta$F1 = +0.32) with zero hallucinated tool invocations (Section~\ref{sec:results}).
 
-\item Evidence that the formulation \textbf{scales to production tool ecosystems}: evaluation on a production MCP server with 1,060 API operations, where the typed composition graph (79 entity types, 1,060 edges) is derived automatically from OpenAPI specifications without manual curation (Section~\ref{sec:production-eval}).
+\item Evidence that the formulation \textbf{scales to production tool ecosystems}: evaluation on a production MCP server with 1,060 API operations, where the typed composition graph (50 entity types, 1,060 edges) is derived automatically from OpenAPI specifications without manual curation (Section~\ref{sec:production-eval}).
 
 \end{enumerate}
 
