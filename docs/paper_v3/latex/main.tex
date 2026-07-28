@@ -46,7 +46,7 @@
 % =============================================================================
 
 \begin{abstract}
-As LLM agents integrate with increasingly large tool ecosystems, tool routing---the task of determining which tools to invoke for a given query---becomes a major bottleneck. Existing approaches require the model to simultaneously identify relevant tools, infer valid multi-step compositions, and avoid hallucinated tool calls. We propose Typed Composition Routing (TCR), which decomposes this problem into two stages: the model predicts source and target entity types, while deterministic graph search over a typed composition graph reconstructs valid tool chains. Across four LLMs, five domains (54--170 tools), and 140 queries, TCR improves F1 in all 20 model--domain combinations (average $+0.32$) while eliminating nonexistent tool invocations. On a production MCP server with 1,060 tools, TCR reduces prompt tokens by 99.7\% and guarantees the absence of hallucinated tool calls by construction. Finally, a granularity study across two domains shows that type ontology design is a key performance lever whose optimal granularity depends on the capability of the entity-type predictor.
+As LLM agents integrate with increasingly large tool ecosystems, tool routing---the task of determining which tools to invoke for a given query---becomes a major bottleneck. Existing approaches require the model to simultaneously identify relevant tools, infer valid multi-step compositions, and avoid hallucinated tool calls. We propose Typed Composition Routing (TCR), which decomposes this problem into two stages: the model predicts source and target entity types, while deterministic graph search over a typed composition graph reconstructs valid tool chains. Across four LLMs, five domains (54--170 tools), and 140 queries, TCR improves F1 in all 20 model--domain combinations (average F1 $+0.32$). Because the graph contains only registered tools, nonexistent tool invocations are eliminated by construction. On a production MCP server with 1,060 tools, TCR reduces prompt tokens by 99.7\%. Finally, a granularity study across two domains shows that type ontology design is a key performance lever whose optimal granularity depends on the capability of the entity-type predictor.
 \end{abstract}
 
 % =============================================================================
@@ -78,7 +78,7 @@ We make three contributions:
 
 \subsection{Typed Composition Graph}
 
-We model each tool as a typed transformation: a tool $t$ takes an entity of type $e_i$ and produces an entity of type $e_j$. The full tool registry then induces a directed graph $G = (E, T)$, where entity types form the nodes and tools induce directed edges between compatible types. Any valid multi-step workflow corresponds to a path through this graph.
+We model each tool as a typed transformation: a tool $t$ takes an entity of type $e_i$ and produces an entity of type $e_j$. The full tool registry then induces a directed graph $G = (E, T)$, where the $|E|$ entity types form the nodes and the $|T|$ tools induce directed edges between compatible types. Any valid multi-step workflow corresponds to a path through this graph.
 
 \subsection{Routing Decomposition}
 
@@ -140,21 +140,21 @@ In contrast, TCR formulates tool routing differently. Rather than predicting too
 
 \subsection{Setup}
 
-We evaluate on five benchmark domains---Kubernetes (135 tools), Ansible (108), GitHub (133), CI/CD (54), and Shopify (170)---plus a production-scale domain: the Ansible Automation Platform (AAP) MCP Server, with 1,060 tools and 50 entity types.
+We evaluate on five benchmark domains---Kubernetes (135 tools), Ansible (108), GitHub (133), CI/CD (54), and Shopify (170)---plus a production-scale domain: the Ansible Automation Platform (AAP) MCP Server~\citep{anthropic2024mcp}, with 1,060 tools and 50 entity types.
 
-Four LLMs serve as type predictors: Granite 4.1 8B (IBM), Qwen3-14B (Alibaba), GPT-OSS-20B \citep{openai2025gptoss}, and Claude Haiku 4.5 (Anthropic). All are evaluated zero-shot, without fine-tuning. We compare against two baselines---direct selection (full tool catalog in the prompt) and embedding retrieval (top-10 tools by cosine similarity using nomic-embed-text-v1.5)---as well as an oracle upper bound that bypasses the predictor and uses the ground-truth source and target entity types. All strategies are evaluated as candidate generators: each produces a set of tools for a query, and we report per-query precision (fraction of returned tools in the gold set), recall (fraction of gold tools returned), and their harmonic mean F1, macro-averaged across queries.
+Four LLMs serve as type predictors: Granite 4.1 8B (IBM), Qwen3-14B (Alibaba), GPT-OSS-20B \citep{openai2025gptoss}, and Claude Haiku 4.5 (Anthropic). In the main experiments (\S\ref{sec:main}--\S\ref{sec:production}), all models are evaluated zero-shot, without fine-tuning; the granularity study (\S\ref{sec:granularity}) uses 10 few-shot examples per granularity level to enable comparison across ontology sizes. We compare against two baselines---direct selection (full tool catalog in the prompt) and embedding retrieval (top-10 tools by cosine similarity using nomic-embed-text-v1.5)---as well as an oracle upper bound that bypasses the predictor and uses the ground-truth source and target entity types. All strategies are evaluated as candidate generators: each produces a set of tools for a query, and we report per-query precision (fraction of returned tools in the gold set), recall (fraction of gold tools returned), and their harmonic mean F1, macro-averaged across queries.
 
 The benchmark comprises 140 manually authored queries for the five benchmark domains and 120 queries for AAP, each spanning six categories: \emph{clean} (direct, unambiguous requests), \emph{synonym} (paraphrased intents using different vocabulary), \emph{multi-hop} (queries requiring two or more chained tools), \emph{ambiguous} (underspecified queries with implicit context), \emph{noisy} (conversational or informal phrasing), and \emph{multi-path} (queries where multiple valid tool paths exist). This category mix tests robustness across the variation patterns that arise in real user inputs.
 
 All queries and gold annotations were authored by the paper's authors: queries were written from API documentation without reference to the routing system, expected tool chains were determined by manual inspection of the type graph, and no annotations were revised after observing system outputs. We acknowledge that author-authored benchmarks may unintentionally favor the proposed decomposition; independently constructed benchmarks would strengthen the evaluation.
 
-\subsection{Main Results}
+\subsection{Main Results}\label{sec:main}
 
-Table~\ref{tab:main} summarizes the results. TCR improves F1 in every one of the 20 model--domain combinations, with an average absolute F1 improvement of $+0.32$ (median $+0.31$, SD $0.12$) over direct selection. The effect is statistically significant (Wilcoxon signed-rank test, $T{=}0$, $p < 10^{-4}$, $N{=}20$) and practically large: even the weakest model under TCR (GPT-OSS-20B at 0.83) outperforms the strongest baseline (Qwen3-14B at 0.58). Across all benchmark queries, TCR produced zero nonexistent tool invocations. The oracle represents an upper bound obtained by providing the true source and target entity types. Since the benchmark tool chains were annotated directly from the typed composition graph, the oracle recovers every gold chain (F1\,=\,1.00). This measures graph completeness rather than predictor performance.
+Table~\ref{tab:main} summarizes the results. TCR improves F1 in every one of the 20 model--domain combinations, with an average absolute F1 improvement of $+0.32$ (median $+0.31$, SD $0.12$) over direct selection. The effect is statistically significant (Wilcoxon signed-rank test, $T{=}0$, $p = 8.83 \times 10^{-5}$, $N{=}20$) and practically large: even the weakest model under TCR (GPT-OSS-20B at 0.83) outperforms the strongest baseline (Qwen3-14B at 0.58). Because graph search returns only registered tools, TCR cannot produce nonexistent tool invocations---a structural guarantee confirmed empirically across all benchmark queries. The oracle represents an upper bound obtained by providing the true source and target entity types. Since the benchmark tool chains were annotated directly from the typed composition graph, the oracle recovers every gold chain (F1\,=\,1.00). This measures graph completeness rather than predictor performance.
 
 \begin{table}[htbp]
   \centering
-  \caption{Average macro-F1 across the five benchmark domains. All TCR outputs produce zero nonexistent tool invocations.}
+  \caption{Average macro-F1 across the five benchmark domains. TCR guarantees zero nonexistent tool invocations by construction.}
   \label{tab:main}
   \begin{tabular}{lcccc}
     \toprule
@@ -185,7 +185,7 @@ Table~\ref{tab:main} summarizes the results. TCR improves F1 in every one of the
   \end{tabular}
 \end{table}
 
-The largest gains appear where baseline performance is weakest---on Ansible, improvements range from $+0.30$ to $+0.47$ depending on the model (Table~\ref{tab:perdomain})---suggesting that typed graph constraints provide the greatest benefit when unconstrained tool selection is more difficult. Separate experiments with Gemini 2.5 Pro on three additional domains (Table~\ref{tab:gemini}) provide insight into the effect of model capacity. A frontier model achieves strong direct-selection F1 (0.69--0.86); TCR produces high-recall candidate sets (0.88--0.91) with zero hallucinations, but lower F1. Because evaluation is performed against a single annotated tool chain, candidate sets containing additional valid tools are penalized as false positives even when those tools are structurally correct. This behavior reflects a precision--recall tradeoff: TCR favors structurally complete candidate sets over committing to a single tool chain. Notably, Gemini's baseline F1 degrades from 0.86 (17 tools) to 0.69 (1,060 tools). This degradation illustrates the scalability challenge that motivates TCR, particularly for the smaller models evaluated in Table~\ref{tab:main}. Overall, these results support the central hypothesis of TCR: decoupling semantic prediction from compositional reasoning improves routing quality while eliminating hallucinated tool invocations.
+The largest gains appear where baseline performance is weakest---on Ansible, per-model F1 improvements range from $+0.30$ (Qwen3) to $+0.47$ (Granite) across the four predictors (Table~\ref{tab:perdomain})---suggesting that typed graph constraints provide the greatest benefit when unconstrained tool selection is more difficult. Separate experiments with Gemini 2.5 Pro on three additional domains (Table~\ref{tab:gemini}) illustrate TCR's behavior with a frontier model. Gemini achieves strong direct-selection F1 (0.69--0.86), so TCR's primary value here is not F1 improvement but structural guarantees: high-recall candidate sets (0.88--0.91) with zero hallucinated tool invocations and substantially reduced prompt tokens. The lower TCR F1 reflects an evaluation artifact: because the benchmark annotates a single gold tool chain, candidate sets containing additional structurally valid tools are penalized as false positives. This precision--recall tradeoff is inherent to candidate-generation evaluation and affects high-recall systems disproportionately. Notably, even Gemini's baseline F1 degrades from 0.86 (17 tools) to 0.69 (1,060 tools), illustrating the scalability challenge that motivates TCR---a challenge that is more acute for the smaller models evaluated in Table~\ref{tab:main}. Overall, these results support the central hypothesis of TCR: decoupling semantic prediction from compositional reasoning improves routing quality, while the structural properties of graph search guarantee the absence of hallucinated tool invocations.
 
 \begin{table}[htbp]
   \centering
@@ -202,19 +202,19 @@ The largest gains appear where baseline performance is weakest---on Ansible, imp
   \end{tabular}
 \end{table}
 
-\subsection{Production Scale: 1,060 Tools}
+\subsection{Production Scale: 1,060 Tools}\label{sec:production}
 
 At production scale, direct tool selection incurs substantial prompt overhead. Presenting all 1,060 tool schemas to the LLM requires roughly 25,000 prompt tokens per query. TCR avoids prompting with the full tool catalog: the model receives only entity type names (${\sim}$66 tokens), and graph search generates candidates from the composition graph.
 
 \begin{table}[htbp]
   \centering
-  \caption{Production-scale routing on the AAP MCP Server (1,060 tools).}
+  \caption{Production-scale routing on the AAP MCP Server (1,060 tools). \textsuperscript{$\dagger$}Routing overhead measures the additional latency introduced by TCR's entity-type prediction call; direct selection has no separate routing step.}
   \label{tab:production}
   \begin{tabular}{lcccc}
     \toprule
-    \textbf{Strategy} & \textbf{Recall} & \textbf{Prompt Tok.} & \textbf{Hallucinations} & \textbf{Latency} \\
+    \textbf{Strategy} & \textbf{Recall} & \textbf{Prompt Tok.} & \textbf{Hallucinations} & \textbf{Routing Overhead}\textsuperscript{$\dagger$} \\
     \midrule
-    Direct selection         & 0.58          & 25,433  & 10  & ---        \\
+    Direct selection         & 0.58          & 25,433  & 10  & 0\,ms      \\
     TCR + Granite 8B         & 0.42          & 66      & 0   & 6,579\,ms  \\
     TCR + Opus 4.6            & \textbf{1.00} & \textbf{66} & \textbf{0} & 2,100\,ms  \\
     \bottomrule
@@ -231,7 +231,7 @@ Table~\ref{tab:production} shows the comparison. TCR replaces a 25,433-token too
 \end{figure}
 
 \FloatBarrier
-\subsection{Ontology Granularity Experiment}
+\subsection{Ontology Granularity Experiment}\label{sec:granularity}
 
 A key design question is how fine-grained the entity ontology should be. The results above treat the type system as fixed. But how sensitive is routing quality to the granularity of the ontology? To find out, we constructed three ontology variants---coarse, medium, and fine---on both a K8s subset (17 tools, 128 queries) and AAP (1,060 tools, 120 queries), varying only the type system while holding tools and queries constant. On K8s, coarse uses 6 entity types (e.g., \texttt{Pod}, \texttt{Resource}), medium splits these into 13 types (distinguishing \texttt{Deployment}, \texttt{Service}, \texttt{Node}, etc.), and fine introduces 21 types with detail variants (\texttt{PodDetail}, \texttt{ServiceDetail}, \texttt{PodCreation}). On AAP, the three levels have 8, 50, and 88 types. Each query is annotated with source and target types for all three granularity levels; the same query text maps to different type-pairs depending on the ontology. Each predictor receives 10 automatically selected few-shot examples for each granularity level.
 
@@ -294,7 +294,7 @@ A key design question is how fine-grained the entity ontology should be. The res
 
 Tables~\ref{tab:gran-k8s} and~\ref{tab:gran-aap} compare two predictors of different capacity---Granite 4.1 8B and Claude Opus 4.6---against the oracle upper bound. With a perfect predictor (oracle rows), finer ontologies consistently improve the oracle upper bound by reducing candidate ambiguity. The question is whether the predictor can keep up as the type vocabulary grows.
 
-Figure~\ref{fig:crossover} reveals the two opposing effects of ontology granularity. Increasing the number of entity types consistently reduces candidate set size, thereby reducing false positives and increasing routing precision. At the same time, the larger label space makes semantic prediction more difficult for smaller models. On K8s (Figure~\ref{fig:crossover}, left), both predictors improve monotonically with finer types, though the gap between Granite and the oracle widens: exact match drops from 77\% to 71\% as the vocabulary grows from 6 to 21 types. Opus 4.6 matches oracle performance exactly (100\% exact match across all granularities). On AAP (Figure~\ref{fig:crossover}, right), the effect is more pronounced: Granite exact match drops from 61\% to 35\% at 88 types, yet despite substantially lower prediction accuracy, finer ontologies still improve routing quality (F1: 0.110 $\rightarrow$ 0.132) because they generate much smaller candidate sets. Opus 4.6, with sufficient capacity to classify all 88 types correctly, tracks the oracle throughout. This illustrates the trade-off between ontology expressiveness and predictor capacity.
+Figure~\ref{fig:crossover} reveals the two opposing effects of ontology granularity. Increasing the number of entity types consistently reduces candidate set size, thereby reducing false positives and increasing routing precision. At the same time, the larger label space makes semantic prediction more difficult for smaller models. On K8s (Figure~\ref{fig:crossover}, left), both predictors improve monotonically with finer types, though the gap between Granite and the oracle widens: exact match drops from 77\% to 71\% as the vocabulary grows from 6 to 21 types. Opus 4.6 matches oracle performance exactly (100\% exact match across all granularities). On AAP (Figure~\ref{fig:crossover}, right), the effect is more pronounced: Granite exact match drops from 61\% to 35\% at 88 types, yet despite substantially lower prediction accuracy, finer ontologies still improve routing precision (F1: 0.110 $\rightarrow$ 0.132) because they generate much smaller candidate sets. Opus 4.6, with sufficient capacity to classify all 88 types correctly, tracks the oracle throughout. This illustrates the trade-off between ontology expressiveness and predictor capacity.
 
 The mechanism is straightforward: finer ontologies reduce the number of tools associated with each source--target type pair ($7.5 \rightarrow 3.6 \rightarrow 3.2$ on AAP), producing smaller candidate sets and fewer false positives. However, each additional entity type must be learned by the predictor. With only 10 few-shot examples per granularity level, Granite struggles to distinguish the 38 fine-grained types added to AAP.
 
@@ -316,6 +316,8 @@ The effectiveness of TCR therefore depends critically on the accuracy of entity-
 
 Likewise, routing quality depends on the completeness of the composition graph. As tool ecosystems evolve, the graph must remain synchronized with tool definitions and type annotations to preserve routing quality.
 
+\textbf{Inference trade-off.} The current implementation replaces one large model invocation over the full tool catalog with two smaller invocations: semantic entity-type prediction followed by tool selection over a reduced candidate set. Although this introduces an additional model invocation, it shifts routing complexity from the number of registered tools to the number of entity types and the size of the candidate set, making the approach increasingly attractive as tool ecosystems scale.
+
 \textbf{The granularity trade-off.} Finer types narrow candidate sets, but the benefit saturates if the predictor cannot keep up with the growing vocabulary. The practical lever is the ratio of candidate-set improvement to classification degradation. With sufficient predictor capacity, finer ontologies consistently improve routing precision by reducing candidate ambiguity.
 
 \textbf{Limitations.}
@@ -323,7 +325,7 @@ Likewise, routing quality depends on the completeness of the composition graph. 
   \item \emph{Typed APIs.} TCR assumes tools can be represented as typed transformations between entities.
   \item \emph{Graph maintenance.} Missing or outdated type annotations reduce recall and require the composition graph to remain synchronized with the evolving tool ecosystem.
   \item \emph{Intent ambiguity.} Multiple tools sharing the same type signature still require semantic disambiguation.
-  \item \emph{Evaluation.} All benchmark queries were author-annotated; independent benchmarks would strengthen the evaluation.
+  \item \emph{Evaluation.} All benchmark queries were author-annotated; independent benchmarks would strengthen the evaluation. The embedding retrieval baseline (cosine top-10 with nomic-embed-text-v1.5) does not include reranking, BM25, or hybrid search; stronger retrieval baselines may narrow the gap.
 \end{itemize}
 
 More broadly, TCR suggests that tool routing should be viewed as the composition of semantic prediction and deterministic graph search rather than as a single end-to-end retrieval problem. Decoupling these two components allows advances in semantic prediction and compositional reasoning to proceed independently: semantic prediction can improve as language models advance, while compositional correctness remains deterministic and verifiable through graph search.
@@ -334,9 +336,41 @@ More broadly, TCR suggests that tool routing should be viewed as the composition
 
 \section{Conclusion}
 
-Decoupling semantic reasoning from compositional reasoning consistently improves routing quality ($+0.32$ F1 across 20 model--domain combinations), eliminates nonexistent tool invocations by construction, and scales to registries with over a thousand tools. The granularity experiment shows that the type ontology is itself a design lever: finer types always help when the predictor can keep up, but the optimal granularity depends on predictor capacity.
+We presented Typed Composition Routing (TCR), a method for tool routing that decouples semantic entity-type prediction from deterministic graph search. Across five benchmark domains and a production-scale API ecosystem with over one thousand tools, this decomposition consistently improved routing quality ($+0.32$ F1 across 20 model--domain combinations), eliminated nonexistent tool invocations by construction, and substantially reduced the prompt footprint required for routing.
 
-By reducing tool routing to classification over a small, fixed vocabulary of entity types (${\sim}$10--90 classes), TCR opens the door to lightweight predictors---in principle, a finetuned encoder could replace the LLM, reducing inference cost by orders of magnitude. We leave empirical validation to future work. Reference implementations are available as open source.\footnote{\url{https://github.com/jangel97/tcr-go}} More broadly, improving tool routing may require changing the prediction target: from tools to the domain abstractions that organize them.
+We further showed that ontology granularity is itself a key design parameter: finer entity types reduce candidate ambiguity and improve routing precision when supported by sufficiently accurate semantic prediction. This highlights an inherent trade-off between semantic prediction difficulty and candidate ambiguity that should guide the design of future typed tool ecosystems.
+
+By reducing tool routing to classification over a small, fixed vocabulary of entity types (typically tens rather than thousands of classes), TCR also opens the door to lightweight semantic predictors, such as compact encoder models trained specifically for entity-type prediction. Exploring this direction remains future work.
+
+More broadly, this work suggests that improving tool routing may require changing the prediction target: from tools to the domain abstractions that organize them. As tool ecosystems such as Model Context Protocol (MCP) servers and agent platforms continue to grow, we believe typed semantic routing provides a scalable foundation for exposing and selecting increasingly large tool catalogs while dramatically reducing prompt footprint and preserving structural correctness.
+
+% =============================================================================
+% Artifact Availability
+% =============================================================================
+
+\section*{Artifact Availability}
+
+The implementation of Typed Composition Routing (TCR), benchmark datasets, ontology definitions, evaluation pipeline, experiment configurations, and the production-scale demonstrations described in this paper are available as open-source software. The released artifacts include:
+
+\begin{itemize}[leftmargin=*,nosep]
+  \item The TCR routing library;
+  \item Benchmark datasets and gold annotations;
+  \item Evaluation scripts reproducing all reported metrics and figures;
+  \item Ontology definitions used in the experiments;
+  \item The production-scale AAP implementation;
+  \item The OpenShift MCP server integration demonstrating TCR with real-world tool ecosystems.
+\end{itemize}
+
+\noindent Repository URLs:
+\begin{itemize}[leftmargin=*,nosep]
+  \item \url{https://github.com/jangel97/tcr-go} --- TCR routing library (Go)
+  \item \url{https://github.com/jangel97/tcr-k8s-demo} --- K8s benchmark experiments and evaluation pipeline
+  \item \url{https://github.com/jangel97/tcr-aap-demo} --- AAP production-scale experiments and evaluation pipeline
+  \item \url{https://github.com/jangel97/typed-composition-search} --- Paper, benchmark suite, and evaluation datasets
+  \item \url{https://github.com/jangel97/openshift-mcp-server} --- OpenShift MCP server fork with TCR integration
+\end{itemize}
+
+\noindent Detailed instructions for reproducing the experiments are provided in the repositories.
 
 % =============================================================================
 % References
