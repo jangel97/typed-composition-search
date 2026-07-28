@@ -74,7 +74,7 @@ def plot_method():
             fontsize=10, ha="center", va="center", fontweight="bold",
             bbox=dict(**box_style, facecolor="#2ecc71", edgecolor="#27ae60", alpha=0.85),
             color="white")
-    ax.text(7.0, 0.65, "Deterministic\n(path enumeration)",
+    ax.text(7.0, 0.65, "Deterministic\n(double-BFS)",
             fontsize=7.5, ha="center", va="center", color="#7f8c8d")
     ax.plot([7.0, 7.0], [1.1, 1.5], linestyle="--", color="#bdc3c7", linewidth=1)
 

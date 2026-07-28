@@ -113,7 +113,7 @@ Existing tool-routing methods fall into three broad categories. \textit{Direct s
 
 We evaluate on five benchmark domains---Kubernetes (135 tools), Ansible (108), GitHub (133), CI/CD (54), and Shopify (170)---plus a production-scale domain: the Ansible Automation Platform (AAP) MCP Server, with 1,060 tools and 50 entity types.
 
-Four LLMs serve as type predictors: Granite 4.1 8B (IBM), Qwen3-14B (Alibaba), GPT-OSS-20B (open-weight, GPT architecture), and Claude Haiku 4.5 (Anthropic). All are evaluated zero-shot, without fine-tuning. We compare against two baselines---direct selection (full tool catalog in the prompt) and embedding retrieval (top-10 tools by cosine similarity using nomic-embed-text-v1.5)---as well as an oracle that uses ground-truth entity types.
+Four LLMs serve as type predictors: Granite 4.1 8B (IBM), Qwen3-14B (Alibaba), GPT-OSS-20B \citep{openai2025gptoss}, and Claude Haiku 4.5 (Anthropic). All are evaluated zero-shot, without fine-tuning. We compare against two baselines---direct selection (full tool catalog in the prompt) and embedding retrieval (top-10 tools by cosine similarity using nomic-embed-text-v1.5)---as well as an oracle that uses ground-truth entity types.
 
 The benchmark comprises 140 manually authored queries for the five benchmark domains and 120 queries for AAP, each spanning six categories: \emph{clean} (direct, unambiguous requests), \emph{synonym} (paraphrased intents using different vocabulary), \emph{multi-hop} (queries requiring two or more chained tools), \emph{ambiguous} (underspecified queries with implicit context), \emph{noisy} (conversational or informal phrasing), and \emph{multi-path} (queries where multiple valid tool paths exist). This category mix tests robustness across the variation patterns that arise in real user inputs.
 
@@ -121,7 +121,7 @@ All queries and gold annotations were authored by the paper's authors following 
 
 \subsection{Main Results}
 
-Table~\ref{tab:main} summarizes the results. TCR improves F1 in every one of the 20 model--domain combinations, with an average gain of $+0.32$ over direct selection. The effect is statistically significant (Wilcoxon signed-rank $p < 10^{-30}$) and practically large: even the weakest model under TCR (GPT-OSS-20B at 0.83) outperforms the strongest baseline (Qwen3-14B at 0.58). No TCR output contains a nonexistent tool invocation.
+Table~\ref{tab:main} summarizes the results. TCR improves F1 in every one of the 20 model--domain combinations, with an average gain of $+0.32$ over direct selection. The effect is statistically significant (Wilcoxon signed-rank $p < 10^{-6}$, $N{=}20$) and practically large: even the weakest model under TCR (GPT-OSS-20B at 0.83) outperforms the strongest baseline (Qwen3-14B at 0.58). No TCR output contains a nonexistent tool invocation.
 
 \begin{table}[htbp]
   \centering
