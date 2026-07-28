@@ -25,24 +25,142 @@ FIGURES_DIR = Path(__file__).resolve().parent / "latex" / "figures"
 
 
 def plot_method():
-    fig, ax = plt.subplots(figsize=(14, 3.5))
-    ax.set_xlim(-0.3, 14.3)
-    ax.set_ylim(0, 3.5)
+    # ── Layout parameters (change these, everything else follows) ─────
+    W, H = 16, 5
+    ROW_Y = 2.8                # main box row
+    ABOVE_Y = ROW_Y + 1.2     # labels above boxes
+    ABOVE2_Y = ROW_Y + 0.85   # annotation boxes above arrow
+    SUB1_Y = ROW_Y - 1.3      # first sub-annotation
+    SUB2_Y = ROW_Y - 1.7      # second sub-annotation
+    DASH_BOT = ROW_Y - 0.55   # dashed line bottom
+    DASH_TOP = ROW_Y - 0.95   # dashed line top (lower y)
+    BOTTOM_Y = 0.5             # footer text
+    ARROW_PAD = 0.08           # gap between arrow tip and box edge
+
+    # Font sizes
+    FS_STAGE = 13
+    FS_QUERY = 12
+    FS_ANNOT = 11
+    FS_MONO = 10
+    FS_TITLE = 15
+    FS_FOOTER = 11
+
+    # Element x-positions (evenly spaced)
+    positions = np.linspace(1.0, W - 1.0, 5)
+    QUERY_X, STAGE1_X, STAGE2_X, FILTERED_X, STAGE3_X = positions
+    FILTERED_X += 0.3
+
+    # ── Setup ─────────────────────────────────────────────────────────
+    fig, ax = plt.subplots(figsize=(W, H))
+    ax.set_xlim(-0.3, W + 0.3)
+    ax.set_ylim(0, H)
     ax.axis("off")
 
     box_style = dict(boxstyle="round,pad=0.4", linewidth=1.5)
 
-    QUERY_X = 0.5
-    STAGE1_X = 3.0
-    STAGE2_X = 6.5
-    FILTERED_X = 9.3
-    STAGE3_X = 12.8
+    # ── Draw all boxes first (save references for arrow computation) ──
 
-    def draw_arrow(x_from, x_to, y=2.0):
+    query_txt = ax.text(
+        QUERY_X, ROW_Y,
+        '"Get containers\nin production"',
+        fontsize=FS_QUERY, ha="center", va="center", style="italic",
+        bbox=dict(**box_style, facecolor="#ecf0f1", edgecolor="#7f8c8d"),
+    )
+
+    stage1_txt = ax.text(
+        STAGE1_X, ROW_Y,
+        "Stage 1\nEntity Type Prediction",
+        fontsize=FS_STAGE, ha="center", va="center",
+        fontweight="bold", color="white",
+        bbox=dict(**box_style, facecolor="#3498db", edgecolor="#2980b9", alpha=0.9),
+    )
+    ax.text(STAGE1_X, SUB1_Y, "Learned Predictor",
+            fontsize=FS_ANNOT, ha="center", color="#7f8c8d")
+    ax.text(STAGE1_X, SUB2_Y, "Query → Entity Types",
+            fontsize=FS_MONO, ha="center", color="#95a5a6", fontfamily="monospace")
+    ax.plot([STAGE1_X, STAGE1_X], [DASH_TOP, DASH_BOT],
+            "--", color="#bdc3c7", linewidth=1)
+
+    mid12 = (STAGE1_X + STAGE2_X) / 2
+    ax.text(mid12, ABOVE_Y, "Predicted Entity Types",
+            fontsize=FS_MONO, ha="center", va="center", color="#7f8c8d")
+    ax.text(mid12, ABOVE2_Y, "Source = Namespace\nTarget = Container",
+            fontsize=9, ha="center", va="center", fontfamily="monospace",
+            bbox=dict(boxstyle="round,pad=0.2", facecolor="#fef9e7", edgecolor="#f39c12"))
+
+    stage2_txt = ax.text(
+        STAGE2_X, ROW_Y,
+        "Stage 2\nTyped Graph Search",
+        fontsize=FS_STAGE, ha="center", va="center",
+        fontweight="bold", color="white",
+        bbox=dict(**box_style, facecolor="#2ecc71", edgecolor="#27ae60", alpha=0.9),
+    )
+    ax.text(STAGE2_X, SUB1_Y, "Deterministic\n(Algorithm 1)",
+            fontsize=FS_ANNOT, ha="center", color="#7f8c8d")
+    ax.plot([STAGE2_X, STAGE2_X], [DASH_TOP, DASH_BOT],
+            "--", color="#bdc3c7", linewidth=1)
+
+    ax.text(FILTERED_X, ABOVE_Y - 0.03, "Filtered Tool Set",
+            fontsize=FS_ANNOT, ha="center", va="center",
+            fontweight="bold", color="#c0392b")
+    filtered_txt = ax.text(
+        FILTERED_X, ROW_Y,
+        "list_namespaced_pods\nget_pod\ndelete_pod\nlist_pod_containers",
+        fontsize=FS_MONO, ha="center", va="center", fontfamily="monospace",
+        bbox=dict(**box_style, facecolor="#fadbd8", edgecolor="#e74c3c"),
+    )
+    ax.text(FILTERED_X + 0.05, SUB1_Y, "Tools on valid\nNamespace → Container paths",
+            fontsize=FS_MONO, ha="center", va="center", fontfamily="monospace",
+            bbox=dict(boxstyle="round,pad=0.2", facecolor="#fef9e7", edgecolor="#f39c12"))
+    ax.plot([FILTERED_X, FILTERED_X], [DASH_TOP, DASH_BOT],
+            "--", color="#bdc3c7", linewidth=1)
+
+    mid_fs3 = (FILTERED_X + STAGE3_X) / 2
+    ax.text(mid_fs3, ABOVE2_Y - 0.3, "Presented\nto the LLM",
+            fontsize=FS_ANNOT, ha="center", va="center",
+            color="#8e44ad", fontweight="bold")
+
+    stage3_txt = ax.text(
+        STAGE3_X, ROW_Y,
+        "Stage 3\nLLM Tool Selection",
+        fontsize=FS_STAGE, ha="center", va="center",
+        fontweight="bold", color="white",
+        bbox=dict(**box_style, facecolor="#9b59b6", edgecolor="#8e44ad", alpha=0.9),
+    )
+    ax.text(STAGE3_X, SUB1_Y + 0.08,
+            "LLM selects from a reduced set of\nstructurally valid tool candidates.",
+            fontsize=FS_MONO, ha="center", color="#7f8c8d")
+    ax.plot([STAGE3_X, STAGE3_X], [DASH_TOP, DASH_BOT],
+            "--", color="#bdc3c7", linewidth=1)
+
+    fig.suptitle("Typed Composition Routing (TCR)",
+                 fontsize=FS_TITLE, fontweight="bold", y=0.98)
+    ax.text(
+        W / 2, BOTTOM_Y,
+        "Every returned tool exists in the registry and adjacent tools are type-compatible.\n"
+        "The filtered tool set reduces prompt tokens and the LLM search space.",
+        fontsize=FS_FOOTER, ha="center", va="center", style="italic", color="#7f8c8d",
+    )
+
+    # ── Render once to compute actual box sizes, then add arrows ──────
+    fig.tight_layout(rect=[0, 0.05, 1, 0.93])
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+
+    def box_x_edges(txt):
+        patch = txt.get_bbox_patch()
+        bb = patch.get_window_extent(renderer)
+        bb_data = bb.transformed(ax.transData.inverted())
+        return bb_data.x0, bb_data.x1
+
+    boxes = [query_txt, stage1_txt, stage2_txt, filtered_txt, stage3_txt]
+    for i in range(len(boxes) - 1):
+        _, x_right = box_x_edges(boxes[i])
+        x_left, _ = box_x_edges(boxes[i + 1])
         ax.annotate(
             "",
-            xy=(x_to, y),
-            xytext=(x_from, y),
+            xy=(x_left - ARROW_PAD, ROW_Y),
+            xytext=(x_right + ARROW_PAD, ROW_Y),
             arrowprops=dict(
                 arrowstyle="-|>",
                 mutation_scale=20,
@@ -53,283 +171,9 @@ def plot_method():
             ),
         )
 
-    # ── Arrows (x_from = right edge of source, x_to = left edge of target)
-    draw_arrow(0.9, 2.03)    # Query → Stage 1
-    draw_arrow(4.0, 5.61)    # Stage 1 → Stage 2
-    draw_arrow(7.4, 8.59)    # Stage 2 → Filtered
-    draw_arrow(10.0, 11.97)  # Filtered → Stage 3
-
-    # ------------------------------------------------------------------
-    # Query
-    # ------------------------------------------------------------------
-
-    ax.text(
-        QUERY_X,
-        2.0,
-        '"Get containers\nin production"',
-        fontsize=9,
-        ha="center",
-        va="center",
-        style="italic",
-        bbox=dict(
-            **box_style,
-            facecolor="#ecf0f1",
-            edgecolor="#7f8c8d",
-        ),
-    )
-
-    # ------------------------------------------------------------------
-    # Stage 1
-    # ------------------------------------------------------------------
-
-    ax.text(
-        STAGE1_X,
-        2.0,
-        "Stage 1\nEntity Type Prediction",
-        fontsize=10,
-        ha="center",
-        va="center",
-        fontweight="bold",
-        color="white",
-        bbox=dict(
-            **box_style,
-            facecolor="#3498db",
-            edgecolor="#2980b9",
-            alpha=0.9,
-        ),
-    )
-
-    ax.text(
-        STAGE1_X,
-        0.75,
-        "Learned Predictor",
-        fontsize=9,
-        ha="center",
-        color="#7f8c8d",
-    )
-
-    ax.text(
-        STAGE1_X,
-        0.40,
-        "Query → Entity Types",
-        fontsize=8,
-        ha="center",
-        color="#95a5a6",
-        fontfamily="monospace",
-    )
-
-    ax.plot(
-        [STAGE1_X, STAGE1_X],
-        [1.1, 1.5],
-        "--",
-        color="#bdc3c7",
-        linewidth=1,
-    )
-
-    # ------------------------------------------------------------------
-    # Predicted types
-    # ------------------------------------------------------------------
-
-    mid = (4.05 + 5.55) / 2  # centered between Stage1→Stage2 arrow endpoints
-
-    ax.text(
-        mid,
-        2.85,
-        "Predicted Entity Types",
-        fontsize=7.5,
-        ha="center",
-        va="center",
-        color="#7f8c8d",
-    )
-    ax.text(
-        mid,
-        2.42,
-        "Source = Namespace\nTarget = Container",
-        fontsize=7.5,
-        ha="center",
-        va="center",
-        bbox=dict(
-            boxstyle="round,pad=0.2",
-            facecolor="#fef9e7",
-            edgecolor="#f39c12",
-        ),
-        fontfamily="monospace",
-    )
-
-    # ------------------------------------------------------------------
-    # Stage 2
-    # ------------------------------------------------------------------
-
-    ax.text(
-        STAGE2_X,
-        2.0,
-        "Stage 2\nTyped Graph Search",
-        fontsize=10,
-        ha="center",
-        va="center",
-        fontweight="bold",
-        color="white",
-        bbox=dict(
-            **box_style,
-            facecolor="#2ecc71",
-            edgecolor="#27ae60",
-            alpha=0.9,
-        ),
-    )
-
-    ax.text(
-        STAGE2_X,
-        0.65,
-        "Deterministic\n(Algorithm 1)",
-        fontsize=9,
-        ha="center",
-        color="#7f8c8d",
-    )
-
-    ax.plot(
-        [STAGE2_X, STAGE2_X],
-        [1.1, 1.5],
-        "--",
-        color="#bdc3c7",
-        linewidth=1,
-    )
-
-    # ------------------------------------------------------------------
-    # Filtered Tool Set
-    # ------------------------------------------------------------------
-
-    ax.text(
-        FILTERED_X,
-        2.65,
-        "Filtered Tool Set",
-        fontsize=8.5,
-        ha="center",
-        va="center",
-        fontweight="bold",
-        color="#c0392b",
-    )
-
-    ax.text(
-        FILTERED_X,
-        2.0,
-        "list_namespaced_pods\nget_pod\ndelete_pod\nlist_pod_containers",
-        fontsize=7.5,
-        ha="center",
-        va="center",
-        fontfamily="monospace",
-        bbox=dict(
-            **box_style,
-            facecolor="#fadbd8",
-            edgecolor="#e74c3c",
-        ),
-    )
-
-    ax.text(
-        FILTERED_X,
-        0.85,
-        "Tools on valid\nNamespace → Container paths",
-        fontsize=8,
-        ha="center",
-        va="center",
-        bbox=dict(
-            boxstyle="round,pad=0.2",
-            facecolor="#fef9e7",
-            edgecolor="#f39c12",
-        ),
-        fontfamily="monospace",
-    )
-
-    ax.plot(
-        [FILTERED_X, FILTERED_X],
-        [1.15, 1.5],
-        "--",
-        color="#bdc3c7",
-        linewidth=1,
-    )
-
-    # ------------------------------------------------------------------
-    # Arrow annotation: Filtered → Stage 3
-    # ------------------------------------------------------------------
-
-    arrow_mid = (10.35 + 11.75) / 2
-    ax.text(
-        arrow_mid,
-        2.45,
-        "Presented\nto the LLM",
-        fontsize=8,
-        ha="center",
-        va="center",
-        color="#8e44ad",
-        fontweight="bold",
-    )
-
-    # ------------------------------------------------------------------
-    # Stage 3
-    # ------------------------------------------------------------------
-
-    ax.text(
-        STAGE3_X,
-        2.0,
-        "Stage 3\nLLM Tool Selection",
-        fontsize=10,
-        ha="center",
-        va="center",
-        fontweight="bold",
-        color="white",
-        bbox=dict(
-            **box_style,
-            facecolor="#9b59b6",
-            edgecolor="#8e44ad",
-            alpha=0.9,
-        ),
-    )
-
-    ax.text(
-        STAGE3_X,
-        0.65,
-        "LLM selects from a reduced set of\nstructurally valid tool candidates.",
-        fontsize=8,
-        ha="center",
-        color="#7f8c8d",
-    )
-
-    ax.plot(
-        [STAGE3_X, STAGE3_X],
-        [1.1, 1.5],
-        "--",
-        color="#bdc3c7",
-        linewidth=1,
-    )
-
-    # ------------------------------------------------------------------
-    # Title
-    # ------------------------------------------------------------------
-
-    fig.suptitle(
-        "Typed Composition Routing (TCR)",
-        fontsize=12,
-        fontweight="bold",
-        y=0.98,
-    )
-
-    ax.text(
-        7.0,
-        0.1,
-        "Every returned tool exists in the registry and adjacent tools are type-compatible.\nThe filtered tool set reduces prompt tokens and the LLM search space.",
-        fontsize=9,
-        ha="center",
-        va="center",
-        style="italic",
-        color="#7f8c8d",
-    )
-
-    fig.tight_layout(rect=[0, 0.05, 1, 0.93])
-
     fig.savefig(FIGURES_DIR / "1_method.pdf", bbox_inches="tight")
     fig.savefig(FIGURES_DIR / "1_method.png", bbox_inches="tight", dpi=200)
-
     plt.close(fig)
-
     print("  1_method.pdf")
 
 
@@ -340,7 +184,7 @@ def plot_scale():
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 4))
 
     # ---------------- Left panel: Tool reduction ----------------
-    categories = ["Full Catalog", "TCR Candidates"]
+    categories = ["Full Catalog", "Candidate Set"]
     values = [1060, 6.1]
     colors = ["#e74c3c", "#2ecc71"]
 
@@ -357,15 +201,15 @@ def plot_scale():
     ax1.set_title("Tool Count Reduction", fontweight="bold", fontsize=11)
     ax1.set_ylim(0, 1200)
 
-    # Value labels
-    for bar, label in zip(bars, ["1060", "6.1"]):
+    # Value labels — small value gets larger font
+    for bar, label, fs in zip(bars, ["1,060", "6.1"], [12, 14]):
         ax1.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 25,
             label,
             ha="center",
             va="bottom",
-            fontsize=12,
+            fontsize=fs,
             fontweight="bold",
         )
 
@@ -373,22 +217,12 @@ def plot_scale():
     x0 = bars[0].get_x() + bars[0].get_width() / 2
     x1 = bars[1].get_x() + bars[1].get_width() / 2
 
-    # Reduction annotation
-    ax1.annotate(
+    # Reduction annotation (no arrow)
+    ax1.text(
+        (x0 + x1) / 2, 600,
         "99.4%\nreduction",
-        xy=(x1, values[1] + 20),
-        xytext=((x0 + x1) / 2, 700),
-        ha="center",
-        va="center",
-        fontsize=10,
-        fontweight="bold",
-        color="#2c3e50",
-        arrowprops=dict(
-            arrowstyle="->",
-            lw=1.5,
-            color="#2c3e50",
-            connectionstyle="arc3,rad=-0.25",
-        ),
+        ha="center", va="center",
+        fontsize=10, fontweight="bold", color="#2c3e50",
     )
 
     ax1.spines["top"].set_visible(False)
@@ -396,7 +230,7 @@ def plot_scale():
     ax1.grid(True, axis="y", alpha=0.3)
 
     # ---------------- Right panel: Token reduction ----------------
-    categories2 = ["Full Catalog", "TCR (type names)"]
+    categories2 = ["Full Catalog", "Entity-Type Prompt"]
     values2 = [25433, 66]
     colors2 = ["#e74c3c", "#2ecc71"]
 
@@ -413,15 +247,15 @@ def plot_scale():
     ax2.set_title("Prompt Token Reduction", fontweight="bold", fontsize=11)
     ax2.set_ylim(0, 29000)
 
-    # Value labels
-    for bar, label in zip(bars2, ["25,433", "66"]):
+    # Value labels — small value gets larger font
+    for bar, label, fs in zip(bars2, ["25,433", "66"], [12, 14]):
         ax2.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 500,
             label,
             ha="center",
             va="bottom",
-            fontsize=12,
+            fontsize=fs,
             fontweight="bold",
         )
 
@@ -429,22 +263,12 @@ def plot_scale():
     x0 = bars2[0].get_x() + bars2[0].get_width() / 2
     x1 = bars2[1].get_x() + bars2[1].get_width() / 2
 
-    # Reduction annotation
-    ax2.annotate(
+    # Reduction annotation (no arrow)
+    ax2.text(
+        (x0 + x1) / 2, 15000,
         "99.7%\nreduction",
-        xy=(x1, values2[1] + 400),
-        xytext=((x0 + x1) / 2, 17000),
-        ha="center",
-        va="center",
-        fontsize=10,
-        fontweight="bold",
-        color="#2c3e50",
-        arrowprops=dict(
-            arrowstyle="->",
-            lw=1.5,
-            color="#2c3e50",
-            connectionstyle="arc3,rad=-0.25",
-        ),
+        ha="center", va="center",
+        fontsize=10, fontweight="bold", color="#2c3e50",
     )
 
     ax2.spines["top"].set_visible(False)
@@ -452,7 +276,7 @@ def plot_scale():
     ax2.grid(True, axis="y", alpha=0.3)
 
     fig.suptitle(
-        "Production Scale: AAP MCP Server (1,060 Tools)",
+        "Production-Scale Routing on the AAP MCP Server (1,060 Tools)",
         fontsize=12,
         fontweight="bold",
     )
