@@ -1,0 +1,52 @@
+{% if graph_eda %}
+<div class="card">
+  <h3>Graph Metrics vs Performance</h3>
+  <div class="eda-grid">
+    {% if graph_eda.path_length %}
+    <div>
+      <h4>F1 by Path Length</h4>
+      <table>
+        <tr><th>Hops</th><th class="strategy">N</th><th class="strategy">Avg F1</th></tr>
+        {% for row in graph_eda.path_length %}
+        <tr>
+          <td class="label">{{ row.key }}</td>
+          <td class="val">{{ row.n }}</td>
+          <td class="val heat" style="background:{{ row.avg_f1|f1_color }}">{{ "%.2f"|format(row.avg_f1) }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+    {% if graph_eda.out_degree %}
+    <div>
+      <h4>F1 by Source Out-Degree</h4>
+      <table>
+        <tr><th>Out-Degree</th><th class="strategy">N</th><th class="strategy">Avg F1</th></tr>
+        {% for row in graph_eda.out_degree %}
+        <tr>
+          <td class="label">{{ row.key }}</td>
+          <td class="val">{{ row.n }}</td>
+          <td class="val heat" style="background:{{ row.avg_f1|f1_color }}">{{ "%.2f"|format(row.avg_f1) }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+    {% if graph_eda.reachable %}
+    <div>
+      <h4>F1 by Source Reachable Types</h4>
+      <table>
+        <tr><th>Reachable</th><th class="strategy">N</th><th class="strategy">Avg F1</th></tr>
+        {% for row in graph_eda.reachable %}
+        <tr>
+          <td class="label">{{ row.key }}</td>
+          <td class="val">{{ row.n }}</td>
+          <td class="val heat" style="background:{{ row.avg_f1|f1_color }}">{{ "%.2f"|format(row.avg_f1) }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

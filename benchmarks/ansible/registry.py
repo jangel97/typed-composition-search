@@ -77,6 +77,7 @@ def build_registry() -> Registry:
     reg.register("get_module", ("ModuleName",), ("Module",))
     reg.register("get_module_doc", ("Module",), ("ModuleDoc",))
     reg.register("get_module_examples", ("Module",), ("ModuleExamples",))
+    reg.register("get_module_collection", ("Module",), ("Collection",))
 
     # --- Collections ---
     reg.register("list_collections", ("Namespace",), ("CollectionList",))

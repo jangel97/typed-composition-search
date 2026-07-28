@@ -5,7 +5,8 @@ import time
 
 from benchmarks.llm import MODELS, get_llm_config, llm_completion
 from benchmarks.metrics import avg, format_metric, format_pruning, format_tools
-from benchmarks.report import BenchmarkReport
+from benchmarks.parallel import run_queries_parallel
+from benchmarks.report import BenchmarkReport, query_graph_metrics
 
 
 SYSTEM_PROMPT = """You are a type predictor for a tool composition system.
@@ -39,7 +40,7 @@ def predict_types(config: dict, query: str, system: str) -> tuple[dict, float, i
     prompt_tokens = usage.prompt_tokens if usage else 0
     completion_tokens = usage.completion_tokens if usage else 0
 
-    text = response.choices[0].message.content.strip()
+    text = (response.choices[0].message.content or "").strip()
     start_idx = text.find("{")
     end_idx = text.rfind("}") + 1
     if start_idx == -1 or end_idx == 0:
@@ -80,11 +81,23 @@ def run_benchmark(model_name: str, domain: str):
     type_exact = 0
     path_found_count = 0
 
-    for q in queries:
+    def process_query(q):
         prediction, latency_ms, prompt_tok, completion_tok = predict_types(config, q["query"], system)
-        report.record_latency(latency_ms, prompt_tok, completion_tok)
         pred_source = prediction.get("source_type", "?")
         pred_target = prediction.get("target_type", "?")
+        path = registry.resolve(pred_source, pred_target)
+        return {
+            "q": q, "prediction": prediction, "pred_source": pred_source, "pred_target": pred_target,
+            "path": path, "latency_ms": latency_ms, "prompt_tok": prompt_tok, "completion_tok": completion_tok,
+        }
+
+    results = run_queries_parallel(queries, process_query)
+
+    for r in results:
+        q = r["q"]
+        pred_source, pred_target = r["pred_source"], r["pred_target"]
+        path, latency_ms = r["path"], r["latency_ms"]
+        report.record_latency(latency_ms, r["prompt_tok"], r["completion_tok"])
 
         cat = q.get("category", "clean")
         stats = report.category_stats[cat]
@@ -102,7 +115,6 @@ def run_benchmark(model_name: str, domain: str):
             type_exact += 1
             stats["type_exact"] += 1
 
-        path = registry.resolve(pred_source, pred_target)
         path_found = path is not None
         if path_found:
             path_found_count += 1
@@ -112,6 +124,14 @@ def run_benchmark(model_name: str, domain: str):
         resolved_tools = {t.name for t in path.tools} if path else set()
         n_tools = len(path.tools) if path else 0
         precision, recall, f1 = report.record_tool_result(resolved_tools, expected_tools, n_tools, cat)
+        report.record_query(
+            q["id"], cat, expected_tools, resolved_tools,
+            precision, recall, f1, latency_ms, n_tools,
+            expected_source=q["source_type"], expected_target=q["target_type"],
+            predicted_source=pred_source, predicted_target=pred_target,
+            path_found=path_found,
+            **query_graph_metrics(registry, pred_source, pred_target, path),
+        )
 
         path_mark = "OK" if path_found else "MISS"
         prompt = q["query"][:82] + "..." if len(q["query"]) > 85 else q["query"]
@@ -134,6 +154,7 @@ def run_benchmark(model_name: str, domain: str):
     print(f"  Path found:         {path_found_count}/{n} ({path_found_count/n:.0%})")
 
     report.print_tool_accuracy()
+    report.print_recall_decomposition()
     report.print_pruning()
     report.print_latency()
     report.print_tokens()

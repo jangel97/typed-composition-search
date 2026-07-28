@@ -5,6 +5,7 @@ import time
 
 from benchmarks.llm import MODELS, get_llm_config, llm_completion
 from benchmarks.metrics import avg, format_metric, format_pruning, format_tools
+from benchmarks.parallel import run_queries_parallel
 from benchmarks.report import BenchmarkReport
 
 
@@ -39,7 +40,7 @@ def select_tools(
     ])
     latency_ms = (time.monotonic() - start) * 1000
 
-    text = response.choices[0].message.content.strip()
+    text = (response.choices[0].message.content or "").strip()
     start_idx = text.find("[")
     end_idx = text.rfind("]") + 1
     if start_idx == -1 or end_idx == 0:
@@ -91,14 +92,23 @@ def run_baseline(model_name: str, domain: str):
     all_tool_count_err = []
     all_hallucinated = 0
 
-    for q in queries:
-        expected_tools = set(q.get("expected_tools", []))
-
+    def process_query(q):
         valid_predicted, hallucinated, prompt_tok, completion_tok, latency_ms = select_tools(
             config, q["query"], system, valid_names,
         )
-        report.record_latency(latency_ms, prompt_tok, completion_tok)
+        return {
+            "q": q, "valid_predicted": valid_predicted, "hallucinated": hallucinated,
+            "prompt_tok": prompt_tok, "completion_tok": completion_tok, "latency_ms": latency_ms,
+        }
 
+    results = run_queries_parallel(queries, process_query)
+
+    for r in results:
+        q = r["q"]
+        valid_predicted, hallucinated, latency_ms = r["valid_predicted"], r["hallucinated"], r["latency_ms"]
+        report.record_latency(latency_ms, r["prompt_tok"], r["completion_tok"])
+
+        expected_tools = set(q.get("expected_tools", []))
         cat = q.get("category", "clean")
         stats = report.category_stats[cat]
         stats["hallucinated"] += len(hallucinated)
@@ -107,6 +117,13 @@ def run_baseline(model_name: str, domain: str):
         n_selected = len(valid_predicted)
         resolved_tools = predicted_set
         precision, recall, f1 = report.record_tool_result(resolved_tools, expected_tools, n_selected, cat)
+
+        report.record_query(
+            q["id"], cat, expected_tools, resolved_tools,
+            precision, recall, f1, latency_ms, n_selected,
+            predicted_tools=valid_predicted,
+            hallucinated_tools=hallucinated,
+        )
 
         if expected_tools:
             exact = 1 if predicted_set == expected_tools else 0

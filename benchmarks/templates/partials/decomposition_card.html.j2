@@ -1,0 +1,80 @@
+{% if decomposition %}
+{% set d = decomposition %}
+<div class="card" style="border-left: 3px solid #f59e0b;">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h3 style="margin-bottom:0;">Recall Decomposition</h3>
+    <span style="font-size:12px; color:#6366f1; font-weight:600;">{{ model }}</span>
+  </div>
+
+  <div style="font-size:12px; color:#9ca3af; line-height:1.6; margin-bottom:16px; padding:12px; background:#0f1117; border-radius:6px;">
+    <p style="margin:0 0 8px 0;">
+      The system has two stages: <strong style="color:#e0e0e0;">entity classification</strong> (LLM predicts source &amp; target types)
+      and <strong style="color:#e0e0e0;">graph planning</strong> (BFS finds a tool path).
+      Since wrong types almost always produce wrong tools (Recall_wrong &asymp; 0):
+    </p>
+    <p style="margin:0 0 12px 0; font-family:monospace; font-size:14px; color:#f59e0b;">
+      Recall_e2e &asymp; TypeAccuracy &times; Recall_oracle
+    </p>
+    <p style="margin:0 0 4px 0;">
+      <strong style="color:#e0e0e0;">Recall_oracle</strong> &mdash; recall when ground-truth types are given (graph quality, no LLM).
+    </p>
+    <p style="margin:0 0 4px 0;">
+      <strong style="color:#e0e0e0;">Recall_wrong</strong> &mdash; recall when types were predicted incorrectly. Validates the &asymp; 0 assumption.
+    </p>
+    <p style="margin:0 0 4px 0;">
+      <strong style="color:#e0e0e0;">Gap</strong> &mdash; difference between predicted and actual. Small gap = decomposition holds.
+    </p>
+    <p style="margin:8px 0 0 0;">
+      <em>Precision and F1 do not decompose this way &mdash; when no path is found, the query is excluded
+      from precision (changes the denominator). Oracle values shown as reference only.</em>
+    </p>
+  </div>
+
+  <div style="text-align:center; margin-bottom:16px;">
+    <div class="summary-item" style="grid-column: 1 / -1; max-width: 240px; display:inline-block;">
+      <div class="summary-value" style="color:#6366f1">{{ "%.0f%%"|format(d.type_exact * 100) }}</div>
+      <div class="summary-label">Type Exact Match</div>
+      <div class="summary-detail">src={{ "%.0f%%"|format(d.source_acc * 100) }} &nbsp; tgt={{ "%.0f%%"|format(d.target_acc * 100) }} &nbsp; path found={{ "%.0f%%"|format(d.oracle_path_pct * 100) }}</div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="summary-value {{ 'pos' if d.oracle_recall >= 0.95 else ('neg' if d.oracle_recall < 0.8 else '') }}">{{ "%.2f"|format(d.oracle_recall) }}</div>
+        <div class="summary-label">Oracle Recall</div>
+      </div>
+
+      {% if d.recall_wrong is not none %}
+      <div class="summary-item">
+        <div class="summary-value {{ 'pos' if d.recall_wrong < 0.05 else 'neg' }}">{{ "%.2f"|format(d.recall_wrong) }}</div>
+        <div class="summary-label">Recall_wrong</div>
+        <div class="summary-detail">n={{ d.n_wrong }} queries</div>
+      </div>
+      {% endif %}
+
+      {% if d.predicted_recall_full is not none %}
+      <div class="summary-item">
+        <div class="summary-value" style="color:#f59e0b">{{ "%.2f"|format(d.predicted_recall_full) }}</div>
+        <div class="summary-label">Predicted Recall</div>
+        <div class="summary-detail">full equation</div>
+      </div>
+      {% else %}
+      <div class="summary-item">
+        <div class="summary-value" style="color:#f59e0b">{{ "%.2f"|format(d.predicted_recall) }}</div>
+        <div class="summary-label">Predicted Recall</div>
+        <div class="summary-detail">assumes Recall_wrong&asymp;0</div>
+      </div>
+      {% endif %}
+
+      {% if d.e2e_recall is not none %}
+      <div class="summary-item">
+        <div class="summary-value {{ 'pos' if d.gap is not none and d.gap|abs < 0.05 else 'neg' }}">{{ "%.2f"|format(d.e2e_recall) }}</div>
+        <div class="summary-label">Actual E2E Recall</div>
+        <div class="summary-detail">gap: {{ "%+.2f"|format(d.gap) }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}

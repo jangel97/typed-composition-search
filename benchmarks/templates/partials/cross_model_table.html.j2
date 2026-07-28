@@ -1,0 +1,26 @@
+{% if cross_model %}
+<div class="card">
+  <h3>Cross-Model Comparison (F1)</h3>
+  <table>
+    <tr>
+      <th>Strategy</th>
+      {% for m in cross_model.models %}
+      <th class="strategy">{{ m }}</th>
+      {% endfor %}
+    </tr>
+    {% for row in cross_model.rows %}
+    <tr>
+      <td class="label">{{ row.key }}</td>
+      {% for val in row["values"] %}
+      {% set cls = "val best" if loop.index0 in row.best_indices else "val" %}
+      {% if val is none %}
+      <td class="{{ cls }} na">&mdash;</td>
+      {% else %}
+      <td class="{{ cls }}">{{ "%.2f"|format(val) }}</td>
+      {% endif %}
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}

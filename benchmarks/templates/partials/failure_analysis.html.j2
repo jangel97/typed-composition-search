@@ -1,0 +1,19 @@
+{% if failure_analysis %}
+<div class="card">
+  <h3>Failure Analysis</h3>
+  {% if failure_analysis.universal_failures %}
+  <div class="failure-group">
+    <h4>Universal Failures ({{ failure_analysis.universal_failures|length }})</h4>
+    <p>These queries fail across all strategies and models — fundamental limitations:</p>
+    <div class="failure-ids">{{ failure_analysis.universal_failures|join(", ") }}</div>
+  </div>
+  {% endif %}
+  {% if failure_analysis.graph_regressions %}
+  <div class="failure-group">
+    <h4>Graph Recall Regressions ({{ failure_analysis.graph_regressions|length }})</h4>
+    <p>Baseline finds these but graph strategies miss them — type prediction errors:</p>
+    <div class="failure-ids">{{ failure_analysis.graph_regressions|join(", ") }}</div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}

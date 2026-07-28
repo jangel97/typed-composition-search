@@ -4,7 +4,8 @@ import time
 
 from benchmarks.llm import get_llm_config, llm_completion
 from benchmarks.metrics import avg, std, build_type_list, match_type_name, format_metric, format_pruning, format_tools
-from benchmarks.report import BenchmarkReport
+from benchmarks.parallel import run_queries_parallel
+from benchmarks.report import BenchmarkReport, query_graph_metrics
 
 
 Q1_TARGET_PROMPT = """Given the user query, which entity type does the user WANT TO OBTAIN or FIND?
@@ -43,8 +44,8 @@ def predict_target(config, query, entity_types, type_names):
     prompt_tokens = usage.prompt_tokens if usage else 0
     completion_tokens = usage.completion_tokens if usage else 0
 
-    text = response.choices[0].message.content.strip()
-    matched = match_type_name(text, type_names)
+    content = response.choices[0].message.content
+    matched = match_type_name(content.strip(), type_names) if content else None
     return matched, latency_ms, prompt_tokens, completion_tokens
 
 
@@ -71,8 +72,8 @@ def predict_source(config, query, target_type, target_desc, source_names, entity
     prompt_tokens = usage.prompt_tokens if usage else 0
     completion_tokens = usage.completion_tokens if usage else 0
 
-    text = response.choices[0].message.content.strip()
-    matched = match_type_name(text, source_names)
+    content = response.choices[0].message.content
+    matched = match_type_name(content.strip(), source_names) if content else None
     return matched, latency_ms, prompt_tokens, completion_tokens
 
 
@@ -113,17 +114,12 @@ def run_benchmark_reverse(model_name: str, domain: str):
     path_found_count = 0
     all_source_set_sizes = []
 
-    for q in queries:
-        cat = q.get("category", "clean")
-        stats = report.category_stats[cat]
-
+    def process_query(q):
         total_latency = 0.0
         total_prompt = 0
         total_completion = 0
 
-        pred_target, lat, ptok, ctok = predict_target(
-            config, q["query"], entity_types, type_names,
-        )
+        pred_target, lat, ptok, ctok = predict_target(config, q["query"], entity_types, type_names)
         total_latency += lat
         total_prompt += ptok
         total_completion += ctok
@@ -132,16 +128,9 @@ def run_benchmark_reverse(model_name: str, domain: str):
         n_sources = 0
 
         if pred_target:
-            tgt_ok = pred_target == q["target_type"]
-            if tgt_ok:
-                target_correct += 1
-                stats["target_correct"] += 1
-
             reverse_sources = registry.reverse_reachable_types(pred_target)
             source_names = sorted(reverse_sources & set(entity_types.keys()))
             n_sources = len(source_names)
-            all_source_set_sizes.append(n_sources)
-
             if source_names:
                 pred_source, lat, ptok, ctok = predict_source(
                     config, q["query"], pred_target, entity_types.get(pred_target, ""),
@@ -151,18 +140,42 @@ def run_benchmark_reverse(model_name: str, domain: str):
                 total_prompt += ptok
                 total_completion += ctok
 
-                if pred_source == q["source_type"]:
-                    source_correct += 1
-                    stats["source_correct"] += 1
-                if pred_source == q["source_type"] and tgt_ok:
-                    exact_match += 1
-                    stats["exact_match"] += 1
-
-        report.record_latency(total_latency, total_prompt, total_completion)
-
         path = None
         if pred_source and pred_target:
             path = registry.resolve(pred_source, pred_target)
+
+        return {
+            "q": q, "pred_source": pred_source, "pred_target": pred_target,
+            "path": path, "n_sources": n_sources,
+            "latency_ms": total_latency, "prompt_tok": total_prompt, "completion_tok": total_completion,
+        }
+
+    results = run_queries_parallel(queries, process_query)
+
+    for r in results:
+        q = r["q"]
+        pred_source, pred_target = r["pred_source"], r["pred_target"]
+        path, n_sources = r["path"], r["n_sources"]
+        total_latency = r["latency_ms"]
+
+        cat = q.get("category", "clean")
+        stats = report.category_stats[cat]
+        report.record_latency(total_latency, r["prompt_tok"], r["completion_tok"])
+
+        if n_sources > 0:
+            all_source_set_sizes.append(n_sources)
+
+        if pred_target:
+            tgt_ok = pred_target == q["target_type"]
+            if tgt_ok:
+                target_correct += 1
+                stats["target_correct"] += 1
+            if pred_source == q["source_type"]:
+                source_correct += 1
+                stats["source_correct"] += 1
+            if pred_source == q["source_type"] and tgt_ok:
+                exact_match += 1
+                stats["exact_match"] += 1
 
         path_found = path is not None
         if path_found:
@@ -173,6 +186,14 @@ def run_benchmark_reverse(model_name: str, domain: str):
         resolved_tools = {t.name for t in path.tools} if path else set()
         n_tools = len(path.tools) if path else 0
         precision, recall, f1 = report.record_tool_result(resolved_tools, expected_tools, n_tools, cat)
+        report.record_query(
+            q["id"], cat, expected_tools, resolved_tools,
+            precision, recall, f1, total_latency, n_tools,
+            expected_source=q["source_type"], expected_target=q["target_type"],
+            predicted_source=pred_source or "?", predicted_target=pred_target or "?",
+            path_found=path_found,
+            **query_graph_metrics(registry, pred_source or "?", pred_target or "?", path),
+        )
 
         expected_st = f"{q['source_type']}→{q['target_type']}"
         pred_st = f"{pred_source or '?'}→{pred_target or '?'}"

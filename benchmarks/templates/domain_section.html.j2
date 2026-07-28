@@ -1,0 +1,19 @@
+{% set dd = domain_data[domain] %}
+<div class="domain-section" id="domain-{{ domain }}" style="{{ '' if is_first else 'display:none;' }}">
+  {% for model in dd.models|sort %}
+  {% set md = dd.models[model] %}
+  {% include "model_section.html.j2" %}
+  {% endfor %}
+
+  {% set cross_model = dd.cross_model %}
+  {% include "partials/cross_model_table.html.j2" %}
+
+  {% set recall_precision = dd.recall_precision %}
+  {% include "partials/recall_precision.html.j2" %}
+
+  {% set graph_eda = dd.graph_eda %}
+  {% include "partials/graph_eda.html.j2" %}
+
+  {% set failure_analysis = dd.failure_analysis %}
+  {% include "partials/failure_analysis.html.j2" %}
+</div>

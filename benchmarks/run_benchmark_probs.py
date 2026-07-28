@@ -5,7 +5,8 @@ import time
 
 from benchmarks.llm import MODELS, get_llm_config, llm_completion
 from benchmarks.metrics import avg, build_type_list, match_type_name, format_metric, format_pruning, format_tools
-from benchmarks.report import BenchmarkReport
+from benchmarks.parallel import run_queries_parallel
+from benchmarks.report import BenchmarkReport, query_graph_metrics
 
 
 Q1_PROMPT = """The user's query describes something they HAVE (the starting point) and something they WANT (the goal).
@@ -34,9 +35,9 @@ Available entity types:
 Respond with ONLY the entity type name, nothing else."""
 
 
-DEFAULT_THRESHOLD = 0.15
+DEFAULT_THRESHOLD = 0.05
 DEFAULT_MAX_CANDIDATES = 5
-FALLBACK_N = 3
+DEFAULT_MIN_CANDIDATES = 3
 
 
 def parse_completions(response, type_names: list[str]) -> list[tuple[str, float]]:
@@ -44,6 +45,8 @@ def parse_completions(response, type_names: list[str]) -> list[tuple[str, float]
     prob_sums: dict[str, float] = {}
 
     for choice in response.choices:
+        if not choice.message.content:
+            continue
         text = choice.message.content.strip()
         matched = match_type_name(text, type_names)
         if not matched:
@@ -69,11 +72,12 @@ def filter_candidates(
     candidates: list[tuple[str, float]],
     threshold: float = DEFAULT_THRESHOLD,
     max_candidates: int = DEFAULT_MAX_CANDIDATES,
+    min_candidates: int = DEFAULT_MIN_CANDIDATES,
 ) -> list[tuple[str, float]]:
     above = [(name, prob) for name, prob in candidates if prob >= threshold]
-    if not above:
-        return candidates[:FALLBACK_N]
-    return above[:max_candidates]
+    if len(above) >= min_candidates:
+        return above[:max_candidates]
+    return candidates[:max(min_candidates, len(above))]
 
 
 def predict_source(config, query, entity_types, type_names, threshold, max_candidates):
@@ -95,8 +99,8 @@ def predict_source(config, query, entity_types, type_names, threshold, max_candi
     prompt_tokens = usage.prompt_tokens if usage else 0
     completion_tokens = usage.completion_tokens if usage else 0
 
-    text = response.choices[0].message.content.strip()
-    matched = match_type_name(text, type_names)
+    content = response.choices[0].message.content
+    matched = match_type_name(content.strip(), type_names) if content else None
     candidates = [(matched, 1.0)] if matched else []
     return candidates, latency_ms, prompt_tokens, completion_tokens
 
@@ -124,8 +128,8 @@ def predict_target(config, query, source_type, source_desc, reachable_names, ent
     prompt_tokens = usage.prompt_tokens if usage else 0
     completion_tokens = usage.completion_tokens if usage else 0
 
-    text = response.choices[0].message.content.strip()
-    matched = match_type_name(text, reachable_names)
+    content = response.choices[0].message.content
+    matched = match_type_name(content.strip(), reachable_names) if content else None
     candidates = [(matched, 1.0)] if matched else []
     return candidates, latency_ms, prompt_tokens, completion_tokens
 
@@ -166,10 +170,7 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
     path_found_count = 0
     all_llm_calls = []
 
-    for q in queries:
-        cat = q.get("category", "clean")
-        stats = report.category_stats[cat]
-
+    def process_query(q):
         total_latency = 0.0
         total_prompt = 0
         total_completion = 0
@@ -184,10 +185,6 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
         llm_calls += 1
 
         src_in = any(name == q["source_type"] for name, _ in source_candidates)
-        if src_in:
-            source_in_topn += 1
-            stats["source_in_topn"] += 1
-
         best_path = None
         best_score = float("-inf")
         best_source = "?"
@@ -201,7 +198,6 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
             reachable_names = sorted(reachable & set(entity_types.keys()))
             if not reachable_names:
                 continue
-
             target_candidates, lat, ptok, ctok = predict_target(
                 config, q["query"], src_name, entity_types.get(src_name, ""),
                 reachable_names, entity_types, threshold, max_candidates,
@@ -210,10 +206,8 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
             total_prompt += ptok
             total_completion += ctok
             llm_calls += 1
-
             if any(name == q["target_type"] for name, _ in target_candidates):
                 tgt_found = True
-
             for tgt_name, tgt_prob in target_candidates:
                 score = math.log(src_prob) + math.log(tgt_prob)
                 if score > best_score:
@@ -224,11 +218,33 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
                         best_source = src_name
                         best_target = tgt_name
 
-        if tgt_found:
+        return {
+            "q": q, "src_in": src_in, "tgt_found": tgt_found,
+            "best_path": best_path, "best_score": best_score,
+            "best_source": best_source, "best_target": best_target,
+            "llm_calls": llm_calls,
+            "latency_ms": total_latency, "prompt_tok": total_prompt, "completion_tok": total_completion,
+        }
+
+    results = run_queries_parallel(queries, process_query)
+
+    for r in results:
+        q = r["q"]
+        best_path, best_score = r["best_path"], r["best_score"]
+        best_source, best_target = r["best_source"], r["best_target"]
+        total_latency, llm_calls = r["latency_ms"], r["llm_calls"]
+
+        cat = q.get("category", "clean")
+        stats = report.category_stats[cat]
+
+        if r["src_in"]:
+            source_in_topn += 1
+            stats["source_in_topn"] += 1
+        if r["tgt_found"]:
             target_in_topn += 1
             stats["target_in_topn"] += 1
 
-        report.record_latency(total_latency, total_prompt, total_completion)
+        report.record_latency(total_latency, r["prompt_tok"], r["completion_tok"])
         all_llm_calls.append(llm_calls)
 
         path_found = best_path is not None
@@ -240,6 +256,16 @@ def run_benchmark_probs(model_name: str, domain: str, threshold: float = DEFAULT
         resolved_tools = {t.name for t in best_path.tools} if best_path else set()
         n_tools = len(best_path.tools) if best_path else 0
         precision, recall, f1 = report.record_tool_result(resolved_tools, expected_tools, n_tools, cat)
+        report.record_query(
+            q["id"], cat, expected_tools, resolved_tools,
+            precision, recall, f1, total_latency, n_tools,
+            expected_source=q["source_type"], expected_target=q["target_type"],
+            predicted_source=best_source, predicted_target=best_target,
+            path_found=path_found,
+            best_score=best_score if best_score > float("-inf") else None,
+            llm_calls=llm_calls,
+            **query_graph_metrics(registry, best_source, best_target, best_path),
+        )
 
         expected_st = f"{q['source_type']}→{q['target_type']}"
         predicted_st = f"{best_source}→{best_target}"
