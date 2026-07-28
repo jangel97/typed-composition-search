@@ -299,13 +299,13 @@ def _crossover_panel(ax, types, oracle_f1, granite_f1,
     c_cands = "#e67e22"
 
     ax.plot(types, oracle_f1, "s-", color=c_oracle, markersize=8,
-            linewidth=2.2, label="Oracle / Opus", zorder=6)
-    ax.plot(types, granite_f1, "D-.", color=c_granite, markersize=8,
+            linewidth=2.2, label="Oracle (= Opus 4.6)", zorder=6)
+    ax.plot(types, granite_f1, "D-", color=c_granite, markersize=8,
             linewidth=2.2, label="Granite 4.1 8B", zorder=5)
 
     ax2 = ax.twinx()
-    ax2.plot(types, candidates, "^-", color=c_cands, markersize=9,
-             linewidth=1.5, alpha=0.6, label="Avg Candidates", zorder=4)
+    ax2.plot(types, candidates, "^-", color=c_cands, markersize=10,
+             linewidth=2.5, alpha=0.85, label="Avg Candidates", zorder=4)
     ax2.set_ylabel("Avg Candidate Size", color=c_cands, fontsize=10)
     ax2.tick_params(axis="y", labelcolor=c_cands)
     ax2.set_ylim(0, cands_ylim)

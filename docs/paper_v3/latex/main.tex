@@ -23,6 +23,7 @@
 \usepackage{xurl}
 \usepackage{placeins}
 \usepackage{float}
+\usepackage{enumitem}
 \usepackage{algorithm}
 \usepackage{algorithmic}
 
@@ -211,18 +212,18 @@ At production scale, direct tool selection incurs substantial prompt overhead. P
   \label{tab:production}
   \begin{tabular}{lcccc}
     \toprule
-    \textbf{Strategy} & \textbf{Recall} & \textbf{Prompt Tokens} & \textbf{Hallucinated Tools} & \textbf{Latency} \\
+    \textbf{Strategy} & \textbf{Recall} & \textbf{Prompt Tok.} & \textbf{Hallucinations} & \textbf{Latency} \\
     \midrule
     Direct selection         & 0.58          & 25,433  & 10  & ---        \\
     TCR + Granite 8B         & 0.42          & 66      & 0   & 6,579\,ms  \\
-    TCR + Opus               & \textbf{1.00} & \textbf{66} & \textbf{0} & 2,100\,ms  \\
+    TCR + Opus 4.6            & \textbf{1.00} & \textbf{66} & \textbf{0} & 2,100\,ms  \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-Table~\ref{tab:production} shows the comparison. TCR replaces a 25,433-token tool catalog with a 66-token entity-type prompt---a 99.7\% reduction. The average candidate set shrinks to 6.1 tools, a 99.4\% reduction from 1,060. Direct selection produced 10 hallucinated tool invocations across 120 queries, whereas TCR produced zero, reflecting TCR's structural guarantee that only registered tools can be returned. Recall depends on predictor capacity: Granite 8B achieves 0.42 recall (primarily limited by its 61\% entity-type prediction accuracy at 50 types), while Opus achieved 100\% type-prediction accuracy on this benchmark and 1.00 recall---outperforming direct selection in both recall and hallucinated tool invocations while requiring only 66 prompt tokens. Latency is dominated by the entity-type prediction LLM call rather than graph search, whose runtime is negligible. Figure~\ref{fig:scale} illustrates the simultaneous reduction in candidate set size and prompt tokens enabled by TCR. More broadly, TCR shifts the scaling bottleneck from tool catalogs to semantic type prediction: prompt size grows with the number of entity types rather than the number of registered tools.
+Table~\ref{tab:production} shows the comparison. TCR replaces a 25,433-token tool catalog with a 66-token entity-type prompt---a 99.7\% reduction. The average candidate set shrinks to 6.1 tools, a 99.4\% reduction from 1,060. Direct selection produced 10 hallucinated tool invocations across 120 queries, whereas TCR produced zero, reflecting TCR's structural guarantee that only registered tools can be returned. Recall depends on predictor capacity: Granite 8B achieves 0.42 recall (primarily limited by its 61\% entity-type prediction accuracy at 50 types), while Opus 4.6 achieved 100\% type-prediction accuracy on this benchmark and 1.00 recall---outperforming direct selection in both recall and hallucinated tool invocations while requiring only 66 prompt tokens. Latency is dominated by the entity-type prediction LLM call rather than graph search, whose runtime is negligible. Figure~\ref{fig:scale} illustrates the simultaneous reduction in candidate set size and prompt tokens enabled by TCR. More broadly, TCR shifts the scaling bottleneck from tool catalogs to semantic type prediction: prompt size grows with the number of entity types rather than the number of registered tools.
 
-\begin{figure}[H]
+\begin{figure}[t!]
   \centering
   \includegraphics[width=\textwidth]{figures/2_scale.pdf}
   \caption{Production-scale routing on the AAP MCP Server. TCR reduces the average candidate set from 1,060 tools to 6.1 (99.4\%) and the prompt from 25,433 tokens to 66 entity-type tokens (99.7\%).}
@@ -232,7 +233,7 @@ Table~\ref{tab:production} shows the comparison. TCR replaces a 25,433-token too
 \FloatBarrier
 \subsection{Ontology Granularity Experiment}
 
-The results above treat the type system as fixed. But how sensitive is routing quality to the granularity of the ontology? To find out, we constructed three ontology variants---coarse, medium, and fine---on both a K8s subset (17 tools, 128 queries) and AAP (1,060 tools, 120 queries), varying only the type system while holding tools and queries constant. On K8s, coarse uses 6 entity types (e.g., \texttt{Pod}, \texttt{Resource}), medium splits these into 13 types (distinguishing \texttt{Deployment}, \texttt{Service}, \texttt{Node}, etc.), and fine introduces 21 types with detail variants (\texttt{PodDetail}, \texttt{ServiceDetail}, \texttt{PodCreation}). On AAP, the three levels have 8, 50, and 88 types. Each query is annotated with source and target types for all three granularity levels; the same query text maps to different type-pairs depending on the ontology. Granite 4.1 8B and Claude Opus receive 10 few-shot examples per granularity level, automatically selected from training data with stratified sampling across source--target pairs to maximize type-pair coverage.
+A key design question is how fine-grained the entity ontology should be. The results above treat the type system as fixed. But how sensitive is routing quality to the granularity of the ontology? To find out, we constructed three ontology variants---coarse, medium, and fine---on both a K8s subset (17 tools, 128 queries) and AAP (1,060 tools, 120 queries), varying only the type system while holding tools and queries constant. On K8s, coarse uses 6 entity types (e.g., \texttt{Pod}, \texttt{Resource}), medium splits these into 13 types (distinguishing \texttt{Deployment}, \texttt{Service}, \texttt{Node}, etc.), and fine introduces 21 types with detail variants (\texttt{PodDetail}, \texttt{ServiceDetail}, \texttt{PodCreation}). On AAP, the three levels have 8, 50, and 88 types. Each query is annotated with source and target types for all three granularity levels; the same query text maps to different type-pairs depending on the ontology. Each predictor receives 10 automatically selected few-shot examples for each granularity level.
 
 \begin{table}[htbp]
   \centering
@@ -252,7 +253,7 @@ The results above treat the type system as fixed. But how sensitive is routing q
     & Exact match   & \textbf{0.773} & 0.750          & 0.711          \\
     & F1        & 0.361 & 0.509          & \textbf{0.586} \\
     \midrule
-    \multirow{2}{*}{Opus}
+    \multirow{2}{*}{Opus 4.6}
     & Exact match   & \textbf{1.000} & \textbf{1.000} & \textbf{1.000} \\
     & F1        & 0.449 & 0.595          & \textbf{0.706} \\
     \bottomrule
@@ -261,7 +262,7 @@ The results above treat the type system as fixed. But how sensitive is routing q
 
 \begin{table}[htbp]
   \centering
-  \caption{Granularity experiment on AAP (1,060 tools, 120 queries). Granite 8B exact match drops to 35\% at 88 types, yet F1 still improves slightly. Opus maintains oracle-level performance throughout.}
+  \caption{Granularity experiment on AAP (1,060 tools, 120 queries). Granite 8B exact match drops to 35\% at 88 types, yet F1 still improves slightly. Opus 4.6 maintains oracle-level performance throughout.}
   \label{tab:gran-aap}
   \small
   \begin{tabular}{llccc}
@@ -277,7 +278,7 @@ The results above treat the type system as fixed. But how sensitive is routing q
     & Exact match   & 0.608  & \textbf{0.608} & 0.350          \\
     & F1        & 0.022  & 0.110          & \textbf{0.132} \\
     \midrule
-    \multirow{2}{*}{Opus}
+    \multirow{2}{*}{Opus 4.6}
     & Exact match   & \textbf{1.000} & \textbf{1.000} & \textbf{1.000} \\
     & F1        & 0.031  & 0.173          & \textbf{0.230} \\
     \bottomrule
@@ -287,15 +288,19 @@ The results above treat the type system as fixed. But how sensitive is routing q
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/3_crossover.pdf}
-  \caption{Granularity vs.\ routing quality on K8s (left, 17 tools, 128 queries) and AAP (right, 1,060 tools, 120 queries). Both Granite 8B and Opus improve with finer types; Opus matches oracle F1 exactly. On AAP, the gap between Granite and oracle widens as exact match drops to 35\% at 88 types.}
+  \caption{K8s (left, 17 tools, 128 queries); AAP (right, 1,060 tools, 120 queries).}
   \label{fig:crossover}
 \end{figure}
 
-Tables~\ref{tab:gran-k8s} and~\ref{tab:gran-aap} compare two predictors of different capacity---Granite 4.1 8B and Claude Opus---against the oracle upper bound. With a perfect predictor (oracle rows), finer types are strictly better: candidate sets shrink and precision rises. The question is whether the predictor can keep up as the type vocabulary grows.
+Tables~\ref{tab:gran-k8s} and~\ref{tab:gran-aap} compare two predictors of different capacity---Granite 4.1 8B and Claude Opus 4.6---against the oracle upper bound. With a perfect predictor (oracle rows), finer ontologies consistently improve the oracle upper bound by reducing candidate ambiguity. The question is whether the predictor can keep up as the type vocabulary grows.
 
-On K8s (Figure~\ref{fig:crossover}, left), both predictors improve monotonically with finer types, though the gap between Granite and the oracle widens: exact match drops from 77\% to 71\% as the vocabulary grows from 6 to 21 types. Opus matches oracle performance exactly (100\% exact match across all granularities). On AAP (Figure~\ref{fig:crossover}, right), the effect is more pronounced: Granite exact match drops from 61\% to 35\% at 88 types, though F1 still improves marginally (0.110 $\rightarrow$ 0.132) because the narrower candidate sets compensate. Opus, with sufficient capacity to classify all 88 types correctly, tracks the oracle throughout.
+Figure~\ref{fig:crossover} reveals the two opposing effects of ontology granularity. Increasing the number of entity types consistently reduces candidate set size, thereby reducing false positives and increasing routing precision. At the same time, the larger label space makes semantic prediction more difficult for smaller models. On K8s (Figure~\ref{fig:crossover}, left), both predictors improve monotonically with finer types, though the gap between Granite and the oracle widens: exact match drops from 77\% to 71\% as the vocabulary grows from 6 to 21 types. Opus 4.6 matches oracle performance exactly (100\% exact match across all granularities). On AAP (Figure~\ref{fig:crossover}, right), the effect is more pronounced: Granite exact match drops from 61\% to 35\% at 88 types, yet despite substantially lower prediction accuracy, finer ontologies still improve routing quality (F1: 0.110 $\rightarrow$ 0.132) because they generate much smaller candidate sets. Opus 4.6, with sufficient capacity to classify all 88 types correctly, tracks the oracle throughout. This illustrates the trade-off between ontology expressiveness and predictor capacity.
 
-The mechanism: finer types reduce tools per type-pair ($7.5 \rightarrow 3.6 \rightarrow 3.2$ on AAP), but each new type needs few-shot coverage. With only 10 examples, Granite struggles to distinguish the 38 fine types added to AAP. The gap between Granite and Opus shows that the optimal granularity depends on predictor capacity: a sufficiently capable model always benefits from finer types.
+The mechanism is straightforward: finer ontologies reduce the number of tools associated with each source--target type pair ($7.5 \rightarrow 3.6 \rightarrow 3.2$ on AAP), producing smaller candidate sets and fewer false positives. However, each additional entity type must be learned by the predictor. With only 10 few-shot examples per granularity level, Granite struggles to distinguish the 38 fine-grained types added to AAP.
+
+The gap between Granite and Opus 4.6 illustrates the key design trade-off. A sufficiently capable predictor consistently benefits from finer ontologies, whereas weaker predictors eventually become limited by the expanded label space. Ontology granularity is therefore not a fixed property of the API, but a tunable design parameter that should be matched to predictor capacity.
+
+More broadly, ontology granularity controls two opposing effects. Increasing granularity systematically reduces candidate set size, eliminating structurally irrelevant tools and improving routing precision. At the same time, it enlarges the semantic prediction space, making entity-type classification more difficult. The optimal ontology therefore balances these two forces: strong predictors benefit from fine-grained ontologies that maximize precision, while weaker predictors may prefer coarser abstractions that preserve prediction accuracy.
 
 % =============================================================================
 % Discussion
@@ -303,11 +308,25 @@ The mechanism: finer types reduce tools per type-pair ($7.5 \rightarrow 3.6 \rig
 
 \section{Discussion}
 
-\textbf{Why is type prediction easier than tool selection?} Users say ``pods,'' ``credentials,'' or ``inventories''---entity types, not tool names like \texttt{list\_namespaced\_pods\_v1}. Because entity types align with how queries are phrased, predicting among tens of semantic types is substantially easier than selecting among hundreds of tool names. The consistent F1 improvement across all 20 model--domain combinations (Table~\ref{tab:main}) confirms this: the smaller target space ($|E| \ll |T|$) and graph reachability constraints reduce effective difficulty. Multi-hop queries benefit most: TCR predicts two types regardless of chain length.
+\textbf{Semantic vs.\ compositional reasoning.} The central finding of this work is that semantic prediction and compositional reasoning have fundamentally different computational properties. TCR exploits this asymmetry by asking the LLM to predict only semantic entity types while delegating compositional reasoning to deterministic graph search. Because the semantic space ($|E|$) is typically much smaller than the tool space ($|T|$), TCR shifts the scaling variable from the number of registered tools to the number of semantic entity types.
 
-\textbf{The granularity trade-off.} Finer types narrow candidate sets, but the benefit saturates if the predictor cannot keep up with the growing vocabulary. The practical lever is the ratio of candidate-set improvement to classification degradation. With a sufficiently capable predictor, finer types are always beneficial.
+An important consequence is that semantic prediction cost is independent of workflow length. Whether a query requires one tool or five, the predictor still outputs only a source and target entity type; additional composition is handled entirely by graph traversal.
 
-\textbf{Limitations.} TCR assumes typed API ecosystems; imperative operations without typed inputs/outputs fall outside the formulation. When multiple tools share the same type signature, intent-level disambiguation remains necessary. The current formulation handles only sequential workflows; multi-input dependencies would require hypergraph edges. Recall is bounded by annotation completeness: even with perfect type prediction, tools whose type relationships are not modeled in the graph will be missed. All benchmark queries were author-annotated; independently constructed benchmarks would strengthen the evaluation.
+The effectiveness of TCR therefore depends critically on the accuracy of entity-type prediction. Deterministic graph search can recover only tool chains consistent with the predicted source and target types; the quality of the candidate set is therefore bounded by the accuracy of semantic prediction. The production-scale AAP experiments illustrate this dependence: Granite 4.1 8B achieves lower routing performance than Opus 4.6 primarily because its lower entity-type prediction accuracy produces less accurate candidate sets. Improving the semantic predictor therefore directly improves end-to-end routing performance without modifying the graph search algorithm.
+
+Likewise, routing quality depends on the completeness of the composition graph. As tool ecosystems evolve, the graph must remain synchronized with tool definitions and type annotations to preserve routing quality.
+
+\textbf{The granularity trade-off.} Finer types narrow candidate sets, but the benefit saturates if the predictor cannot keep up with the growing vocabulary. The practical lever is the ratio of candidate-set improvement to classification degradation. With sufficient predictor capacity, finer ontologies consistently improve routing precision by reducing candidate ambiguity.
+
+\textbf{Limitations.}
+\begin{itemize}[leftmargin=*,nosep]
+  \item \emph{Typed APIs.} TCR assumes tools can be represented as typed transformations between entities.
+  \item \emph{Graph maintenance.} Missing or outdated type annotations reduce recall and require the composition graph to remain synchronized with the evolving tool ecosystem.
+  \item \emph{Intent ambiguity.} Multiple tools sharing the same type signature still require semantic disambiguation.
+  \item \emph{Evaluation.} All benchmark queries were author-annotated; independent benchmarks would strengthen the evaluation.
+\end{itemize}
+
+More broadly, TCR suggests that tool routing should be viewed as the composition of semantic prediction and deterministic graph search rather than as a single end-to-end retrieval problem. Decoupling these two components allows advances in semantic prediction and compositional reasoning to proceed independently: semantic prediction can improve as language models advance, while compositional correctness remains deterministic and verifiable through graph search.
 
 % =============================================================================
 % Conclusion
