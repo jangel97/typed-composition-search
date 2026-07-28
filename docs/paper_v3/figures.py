@@ -18,95 +18,318 @@ import matplotlib.patches as mpatches
 import matplotlib.ticker as mticker
 import numpy as np
 
-FIGURES_DIR = Path(__file__).resolve().parent / "figures"
+FIGURES_DIR = Path(__file__).resolve().parent / "latex" / "figures"
 
 
 # ── Figure 1: Method diagram (TCR pipeline) ──────────────────────────
 
 
 def plot_method():
-    fig, ax = plt.subplots(figsize=(11, 3.2))
-    ax.set_xlim(-0.3, 11.3)
+    fig, ax = plt.subplots(figsize=(14, 3.5))
+    ax.set_xlim(-0.3, 14.3)
     ax.set_ylim(0, 3.5)
     ax.axis("off")
 
     box_style = dict(boxstyle="round,pad=0.4", linewidth=1.5)
 
+    QUERY_X = 0.5
+    STAGE1_X = 3.0
+    STAGE2_X = 6.5
+    FILTERED_X = 9.3
+    STAGE3_X = 12.8
+
     def draw_arrow(x_from, x_to, y=2.0):
-        ax.annotate("",
-                     xy=(x_to, y), xytext=(x_from, y),
-                     arrowprops=dict(
-                         arrowstyle="-|>",
-                         mutation_scale=20,
-                         linewidth=2.0,
-                         color="#2c3e50",
-                         shrinkA=0, shrinkB=0,
-                     ))
+        ax.annotate(
+            "",
+            xy=(x_to, y),
+            xytext=(x_from, y),
+            arrowprops=dict(
+                arrowstyle="-|>",
+                mutation_scale=20,
+                linewidth=2.0,
+                color="#2c3e50",
+                shrinkA=0,
+                shrinkB=0,
+            ),
+        )
 
-    # Query box (centered at 0.8)
-    ax.text(0.8, 2.0, '"Get logs for pods\n in production"',
-            fontsize=9, ha="center", va="center", style="italic",
-            bbox=dict(**box_style, facecolor="#ecf0f1", edgecolor="#7f8c8d"))
+    # ── Arrows (x_from = right edge of source, x_to = left edge of target)
+    draw_arrow(0.9, 2.03)    # Query → Stage 1
+    draw_arrow(4.0, 5.61)    # Stage 1 → Stage 2
+    draw_arrow(7.4, 8.59)    # Stage 2 → Filtered
+    draw_arrow(10.0, 11.97)  # Filtered → Stage 3
 
-    # Arrow: query -> stage 1
-    draw_arrow(1.9, 2.5)
+    # ------------------------------------------------------------------
+    # Query
+    # ------------------------------------------------------------------
 
-    # Stage 1: Type prediction (centered at 3.5)
-    ax.text(3.5, 2.0, "Stage 1\nType Prediction",
-            fontsize=10, ha="center", va="center", fontweight="bold",
-            bbox=dict(**box_style, facecolor="#3498db", edgecolor="#2980b9", alpha=0.85),
-            color="white")
-    ax.text(3.5, 0.65, "LLM Predictor",
-            fontsize=7.5, ha="center", va="center", color="#7f8c8d")
-    ax.plot([3.5, 3.5], [1.1, 1.5], linestyle="--", color="#bdc3c7", linewidth=1)
+    ax.text(
+        QUERY_X,
+        2.0,
+        '"Get containers\nin production"',
+        fontsize=9,
+        ha="center",
+        va="center",
+        style="italic",
+        bbox=dict(
+            **box_style,
+            facecolor="#ecf0f1",
+            edgecolor="#7f8c8d",
+        ),
+    )
 
-    # Arrow: stage 1 -> stage 2
-    draw_arrow(4.6, 6.0)
+    # ------------------------------------------------------------------
+    # Stage 1
+    # ------------------------------------------------------------------
 
-    # Predicted types label above arrow
-    ax.text(5.3, 2.55, "src=Namespace\ntgt=PodLogs",
-            fontsize=7.5, ha="center", va="center",
-            bbox=dict(boxstyle="round,pad=0.2", facecolor="#fef9e7", edgecolor="#f39c12"),
-            fontfamily="monospace")
+    ax.text(
+        STAGE1_X,
+        2.0,
+        "Stage 1\nEntity Type Prediction",
+        fontsize=10,
+        ha="center",
+        va="center",
+        fontweight="bold",
+        color="white",
+        bbox=dict(
+            **box_style,
+            facecolor="#3498db",
+            edgecolor="#2980b9",
+            alpha=0.9,
+        ),
+    )
 
-    # Stage 2: Graph search (centered at 7.0)
-    ax.text(7.0, 2.0, "Stage 2\nGraph Search",
-            fontsize=10, ha="center", va="center", fontweight="bold",
-            bbox=dict(**box_style, facecolor="#2ecc71", edgecolor="#27ae60", alpha=0.85),
-            color="white")
-    ax.text(7.0, 0.65, "Deterministic\n(double-BFS)",
-            fontsize=7.5, ha="center", va="center", color="#7f8c8d")
-    ax.plot([7.0, 7.0], [1.1, 1.5], linestyle="--", color="#bdc3c7", linewidth=1)
+    ax.text(
+        STAGE1_X,
+        0.75,
+        "Learned Predictor",
+        fontsize=9,
+        ha="center",
+        color="#7f8c8d",
+    )
 
-    # Arrow: stage 2 -> output
-    draw_arrow(8.1, 8.8)
+    ax.text(
+        STAGE1_X,
+        0.40,
+        "Query → Entity Types",
+        fontsize=8,
+        ha="center",
+        color="#95a5a6",
+        fontfamily="monospace",
+    )
 
-    # Output: tool chain (centered at 10.0)
-    ax.text(10.0, 2.0,
-            "list_namespaced_pods\n→ get_pod_logs",
-            fontsize=8.5, ha="center", va="center", fontfamily="monospace",
-            bbox=dict(**box_style, facecolor="#fadbd8", edgecolor="#e74c3c"))
+    ax.plot(
+        [STAGE1_X, STAGE1_X],
+        [1.1, 1.5],
+        "--",
+        color="#bdc3c7",
+        linewidth=1,
+    )
 
-    # Graph path below output
-    ax.text(10.0, 0.85, "Namespace → Pod → PodLogs",
-            fontsize=7.5, ha="center", va="center",
-            bbox=dict(boxstyle="round,pad=0.2", facecolor="#fef9e7", edgecolor="#f39c12"),
-            fontfamily="monospace")
-    ax.plot([10.0, 10.0], [1.15, 1.5], linestyle="--", color="#bdc3c7", linewidth=1)
+    # ------------------------------------------------------------------
+    # Predicted types
+    # ------------------------------------------------------------------
 
+    mid = (4.05 + 5.55) / 2  # centered between Stage1→Stage2 arrow endpoints
+
+    ax.text(
+        mid,
+        2.85,
+        "Predicted Entity Types",
+        fontsize=7.5,
+        ha="center",
+        va="center",
+        color="#7f8c8d",
+    )
+    ax.text(
+        mid,
+        2.42,
+        "Source = Namespace\nTarget = Container",
+        fontsize=7.5,
+        ha="center",
+        va="center",
+        bbox=dict(
+            boxstyle="round,pad=0.2",
+            facecolor="#fef9e7",
+            edgecolor="#f39c12",
+        ),
+        fontfamily="monospace",
+    )
+
+    # ------------------------------------------------------------------
+    # Stage 2
+    # ------------------------------------------------------------------
+
+    ax.text(
+        STAGE2_X,
+        2.0,
+        "Stage 2\nTyped Graph Search",
+        fontsize=10,
+        ha="center",
+        va="center",
+        fontweight="bold",
+        color="white",
+        bbox=dict(
+            **box_style,
+            facecolor="#2ecc71",
+            edgecolor="#27ae60",
+            alpha=0.9,
+        ),
+    )
+
+    ax.text(
+        STAGE2_X,
+        0.65,
+        "Deterministic\n(Algorithm 1)",
+        fontsize=9,
+        ha="center",
+        color="#7f8c8d",
+    )
+
+    ax.plot(
+        [STAGE2_X, STAGE2_X],
+        [1.1, 1.5],
+        "--",
+        color="#bdc3c7",
+        linewidth=1,
+    )
+
+    # ------------------------------------------------------------------
+    # Filtered Tool Set
+    # ------------------------------------------------------------------
+
+    ax.text(
+        FILTERED_X,
+        2.65,
+        "Filtered Tool Set",
+        fontsize=8.5,
+        ha="center",
+        va="center",
+        fontweight="bold",
+        color="#c0392b",
+    )
+
+    ax.text(
+        FILTERED_X,
+        2.0,
+        "list_namespaced_pods\nget_pod\ndelete_pod\nlist_pod_containers",
+        fontsize=7.5,
+        ha="center",
+        va="center",
+        fontfamily="monospace",
+        bbox=dict(
+            **box_style,
+            facecolor="#fadbd8",
+            edgecolor="#e74c3c",
+        ),
+    )
+
+    ax.text(
+        FILTERED_X,
+        0.85,
+        "Tools on valid\nNamespace → Container paths",
+        fontsize=8,
+        ha="center",
+        va="center",
+        bbox=dict(
+            boxstyle="round,pad=0.2",
+            facecolor="#fef9e7",
+            edgecolor="#f39c12",
+        ),
+        fontfamily="monospace",
+    )
+
+    ax.plot(
+        [FILTERED_X, FILTERED_X],
+        [1.15, 1.5],
+        "--",
+        color="#bdc3c7",
+        linewidth=1,
+    )
+
+    # ------------------------------------------------------------------
+    # Arrow annotation: Filtered → Stage 3
+    # ------------------------------------------------------------------
+
+    arrow_mid = (10.35 + 11.75) / 2
+    ax.text(
+        arrow_mid,
+        2.45,
+        "Presented\nto the LLM",
+        fontsize=8,
+        ha="center",
+        va="center",
+        color="#8e44ad",
+        fontweight="bold",
+    )
+
+    # ------------------------------------------------------------------
+    # Stage 3
+    # ------------------------------------------------------------------
+
+    ax.text(
+        STAGE3_X,
+        2.0,
+        "Stage 3\nLLM Tool Selection",
+        fontsize=10,
+        ha="center",
+        va="center",
+        fontweight="bold",
+        color="white",
+        bbox=dict(
+            **box_style,
+            facecolor="#9b59b6",
+            edgecolor="#8e44ad",
+            alpha=0.9,
+        ),
+    )
+
+    ax.text(
+        STAGE3_X,
+        0.65,
+        "LLM selects from a reduced set of\nstructurally valid tool candidates.",
+        fontsize=8,
+        ha="center",
+        color="#7f8c8d",
+    )
+
+    ax.plot(
+        [STAGE3_X, STAGE3_X],
+        [1.1, 1.5],
+        "--",
+        color="#bdc3c7",
+        linewidth=1,
+    )
+
+    # ------------------------------------------------------------------
     # Title
-    fig.suptitle("TCR Pipeline: Semantic Reasoning + Compositional Reasoning",
-                 fontsize=12, fontweight="bold", y=0.98)
+    # ------------------------------------------------------------------
 
-    # Guarantee annotation
-    ax.text(5.5, 0.1, "Structural guarantee: every output tool exists in the registry "
-            "and adjacent tools are type-compatible",
-            fontsize=7.5, ha="center", va="center", style="italic", color="#7f8c8d")
+    fig.suptitle(
+        "Typed Composition Routing (TCR)",
+        fontsize=12,
+        fontweight="bold",
+        y=0.98,
+    )
+
+    ax.text(
+        7.0,
+        0.1,
+        "Every returned tool exists in the registry and adjacent tools are type-compatible.\nThe filtered tool set reduces prompt tokens and the LLM search space.",
+        fontsize=9,
+        ha="center",
+        va="center",
+        style="italic",
+        color="#7f8c8d",
+    )
 
     fig.tight_layout(rect=[0, 0.05, 1, 0.93])
+
     fig.savefig(FIGURES_DIR / "1_method.pdf", bbox_inches="tight")
     fig.savefig(FIGURES_DIR / "1_method.png", bbox_inches="tight", dpi=200)
+
     plt.close(fig)
+
     print("  1_method.pdf")
 
 
